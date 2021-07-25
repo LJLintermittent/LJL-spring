@@ -10,6 +10,7 @@ import org.junit.Test;
  * @author 李佳乐
  * @email 18066550996@163.com
  */
+@SuppressWarnings("all")
 public class BeanTest {
 
     @Test
