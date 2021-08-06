@@ -1,4 +1,4 @@
-package com.learn.myspring.day2;
+package com.learn.myspring.version2;
 
 /**
  * Description:

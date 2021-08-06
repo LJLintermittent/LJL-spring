@@ -1,4 +1,4 @@
-package com.learn.myspring.day1;
+package com.learn.myspring.version1;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
