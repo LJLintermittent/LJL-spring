@@ -1,9 +1,9 @@
-package com.learn.myspring.version2;
+package com.learn.myspring.core;
 
 /**
  * Description:
  * date: 2021/8/5 18:50
- * Package: com.learn.myspring.day2
+ * Package: com.learn.myspring.core
  *
  * @author 李佳乐
  * @email 18066550996@163.com
@@ -26,7 +26,7 @@ public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry i
 
     @Override
     public Object getBean(String name, Object... args) throws BeansException {
-        return doGetBean(name, args);
+            return doGetBean(name, args);
     }
 
     protected <T> T doGetBean(final String name, final Object[] args) {

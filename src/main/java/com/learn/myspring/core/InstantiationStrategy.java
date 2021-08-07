@@ -1,11 +1,11 @@
-package com.learn.myspring.version2;
+package com.learn.myspring.core;
 
 import java.lang.reflect.Constructor;
 
 /**
  * Description:
  * date: 2021/8/6 21:52
- * Package: com.learn.myspring.day2
+ * Package: com.learn.myspring.core
  *
  * @author 李佳乐
  * @email 18066550996@163.com

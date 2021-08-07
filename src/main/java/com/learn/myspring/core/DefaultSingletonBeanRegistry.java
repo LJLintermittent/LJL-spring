@@ -1,4 +1,4 @@
-package com.learn.myspring.version2;
+package com.learn.myspring.core;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * Description:
  * date: 2021/8/5 18:44
- * Package: com.learn.myspring.day2
+ * Package: com.learn.myspring.core
  *
  * @author 李佳乐
  * @email 18066550996@163.com

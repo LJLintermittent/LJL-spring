@@ -1,4 +1,4 @@
-package com.learn.myspring.version2;
+package com.learn.myspring.core;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -6,7 +6,7 @@ import java.lang.reflect.InvocationTargetException;
 /**
  * Description:
  * date: 2021/8/6 21:56
- * Package: com.learn.myspring.version2
+ * Package: com.learn.myspring.core
  *
  * @author 李佳乐
  * @email 18066550996@163.com

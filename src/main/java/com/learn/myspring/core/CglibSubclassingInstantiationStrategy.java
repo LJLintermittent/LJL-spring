@@ -1,4 +1,4 @@
-package com.learn.myspring.version2;
+package com.learn.myspring.core;
 
 import net.sf.cglib.proxy.Enhancer;
 import net.sf.cglib.proxy.NoOp;
@@ -8,7 +8,7 @@ import java.lang.reflect.Constructor;
 /**
  * Description:
  * date: 2021/8/6 22:12
- * Package: com.learn.myspring.version2
+ * Package: com.learn.myspring.core
  *
  * @author 李佳乐
  * @email 18066550996@163.com
@@ -18,7 +18,7 @@ import java.lang.reflect.Constructor;
 @SuppressWarnings("all")
 public class CglibSubclassingInstantiationStrategy implements InstantiationStrategy {
 
-    // Cglib创建有构造函数的 Bean 也非常方便,在这里我更加简化的处理了，
+    // Cglib创建有构造函数的Bean
     // 阅读Spring源码还会看到 CallbackFilter 等实现
     @Override
     public Object instantiate(BeanDefinition beanDefinition, String beanName, Constructor constructor, Object[] args) throws BeansException {
