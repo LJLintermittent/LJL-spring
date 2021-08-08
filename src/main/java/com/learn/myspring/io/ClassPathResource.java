@@ -18,6 +18,11 @@ import java.io.InputStream;
 @SuppressWarnings("all")
 public class ClassPathResource implements Resource {
 
+
+    /**
+     * 这一部分的实现是用于通过 ClassLoader 读取 ClassPath 下的文件信息，
+     * 具体的读取过程主要是：classLoader.getResourceAsStream(path)
+     */
     private final String path;
 
     private ClassLoader classLoader;
