@@ -11,6 +11,7 @@ import com.learn.myspring.core.BeanDefinitionRegistry;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
+//抽象类实现了BeanDefinitionReader的前两个方法，并提供了构造函数，让外部的调用使用方，把Bean定义注入类，传递进来
 public abstract class AbstractBeanDefinitionReader implements BeanDefinitionReader {
 
     private final BeanDefinitionRegistry beanDefinitionRegistry;
