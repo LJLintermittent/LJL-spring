@@ -16,6 +16,7 @@ import java.io.InputStream;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
+//ClassPath:类路径资源读取器
 public class ClassPathResource implements Resource {
 
 
