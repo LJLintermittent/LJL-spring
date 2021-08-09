@@ -22,9 +22,10 @@ public class UserServiceImpl implements UserService {
 //        this.name = name;
 //    }
 
-    public void queryUserInfo() {
-        System.out.println("查询的用户信息：" + userDao.queryUserName(uid));
+    public String queryUserInfo() {
+//        System.out.println("查询的用户信息：" + userDao.queryUserName(uid));
 //        System.out.println("查询用户信息：" + name);
+        return userDao.queryUserName(uid);
     }
 
 //    @Override

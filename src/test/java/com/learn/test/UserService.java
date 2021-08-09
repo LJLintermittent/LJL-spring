@@ -10,6 +10,6 @@ package com.learn.test;
  */
 public interface UserService {
 
-     void queryUserInfo();
+     String queryUserInfo();
 
 }

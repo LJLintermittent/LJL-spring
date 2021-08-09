@@ -44,7 +44,8 @@ public class ResourceTest {
 
     @Test
     public void test_url() throws IOException {
-        Resource resource = resourceLoader.getResource("https://github.com/fuzhengwei/small-spring/important.properties");
+        Resource resource = resourceLoader.
+                getResource("https://gitee.com/LJLintermittent/ljl-spring/blob/master/src/main/resources/important.properties");
         InputStream inputStream = resource.getInputStream();
         String content = IoUtil.readUtf8(inputStream);
         System.out.println(content);

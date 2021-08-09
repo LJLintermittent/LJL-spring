@@ -25,7 +25,7 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
     /**
      * XmlBeanDefinitionReader类的最核心功能就是解析XML，把我们本来在代码中的操作通过解析xml自动注册的方式
      */
-    protected XmlBeanDefinitionReader(BeanDefinitionRegistry registry) {
+    public XmlBeanDefinitionReader(BeanDefinitionRegistry registry) {
         super(registry);
     }
 
