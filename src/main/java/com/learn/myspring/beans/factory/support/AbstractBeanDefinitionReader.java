@@ -6,7 +6,7 @@ import com.learn.myspring.core.io.ResourceLoader;
 /**
  * Description:
  * date: 2021/8/9 23:25
- * Package: com.learn.myspring.io
+ * Package: com.learn.myspring.beans.factory.support
  *
  * @author 李佳乐
  * @email 18066550996@163.com

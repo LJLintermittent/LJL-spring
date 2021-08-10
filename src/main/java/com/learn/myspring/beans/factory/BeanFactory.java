@@ -5,7 +5,7 @@ import com.learn.myspring.beans.BeansException;
 /**
  * Description:
  * date: 2021/8/5 18:51
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans.factory
  *
  * @author 李佳乐
  * @email 18066550996@163.com
@@ -24,8 +24,8 @@ public interface BeanFactory {
     // 有兼容的返回类型，比父类被重写方法更好访问，不能比父类被重写方法声明更多的异常（里氏代换原则）。
     // 重载对返回类型没有特殊的要求，不能根据返回类型进行区分。
 
-
     // BeanFactory 中我们重载了一个含有入参信息 args 的 getBean 方法，这样就可以方便的传递入参给构造函数实例化了。
     Object getBean(String name, Object... args) throws BeansException;
 
+    <T> T getBean(String name, Class<T> requiredType) throws BeansException;
 }

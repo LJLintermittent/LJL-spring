@@ -2,7 +2,6 @@ package com.learn.myspring.beans.factory.support;
 
 import com.learn.myspring.beans.BeansException;
 import com.learn.myspring.beans.factory.config.BeanDefinition;
-import com.learn.myspring.beans.factory.support.InstantiationStrategy;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -10,7 +9,7 @@ import java.lang.reflect.InvocationTargetException;
 /**
  * Description:
  * date: 2021/8/6 21:56
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans.factory.support
  *
  * @author 李佳乐
  * @email 18066550996@163.com

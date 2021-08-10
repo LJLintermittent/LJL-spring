@@ -20,7 +20,7 @@ import java.io.InputStream;
 /**
  * Description:
  * date: 2021/8/9 23:46
- * Package: com.learn.myspring.io
+ * Package: com.learn.myspring.beans.factory.xml
  *
  * @author 李佳乐
  * @email 18066550996@163.com
@@ -65,6 +65,13 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
         ResourceLoader resourceLoader = getResourceLoader();
         Resource resource = resourceLoader.getResource(location);
         loadBeanDefinitions(resource);
+    }
+
+    @Override
+    public void loadBeanDefinitions(String... locations) throws BeansException {
+        for (String location : locations) {
+            loadBeanDefinitions(location);
+        }
     }
 
     private void doLoadBeanDefinitions(InputStream inputStream) throws ClassNotFoundException {

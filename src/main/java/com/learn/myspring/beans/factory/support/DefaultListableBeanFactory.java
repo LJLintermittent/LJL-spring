@@ -1,9 +1,9 @@
 package com.learn.myspring.beans.factory.support;
 
 import com.learn.myspring.beans.BeansException;
+import com.learn.myspring.beans.factory.ConfigurableListableBeanFactory;
 import com.learn.myspring.beans.factory.config.BeanDefinition;
-import com.learn.myspring.beans.factory.support.AbstractAutowireCapableBeanFactory;
-import com.learn.myspring.beans.factory.support.BeanDefinitionRegistry;
+
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,13 +11,13 @@ import java.util.Map;
 /**
  * Description:
  * date: 2021/8/5 19:11
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans.factory.support
  *
  * @author 李佳乐
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFactory implements BeanDefinitionRegistry {
+public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFactory implements BeanDefinitionRegistry, ConfigurableListableBeanFactory {
 
     /**
      * DefaultListableBeanFactory 继承了 AbstractAutowireCapableBeanFactory 类，
@@ -42,7 +42,12 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
         return beanDefinition;
     }
 
+    @Override
+    public void preInstantiateSingletons() throws BeansException {
+        beanDefinitionMap.keySet().forEach(this::getBean);
+    }
 
+    @Override
     public <T> Map<String, T> getBeansOfType(Class<T> type) throws BeansException {
         Map<String, T> result = new HashMap<>();
         beanDefinitionMap.forEach((beanName, beanDefinition) -> {

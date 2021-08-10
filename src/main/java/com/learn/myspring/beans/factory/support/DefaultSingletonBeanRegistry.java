@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * Description:
  * date: 2021/8/5 18:44
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans.factory.support
  *
  * @author 李佳乐
  * @email 18066550996@163.com
@@ -30,7 +30,7 @@ public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
     }
 
     // 这个方法可以被继承此类的其他类调用。
-    protected void addSingleton(String name, Object singletonObject) {
-        singletonObjects.put(name, singletonObject);
+    protected void addSingleton(String beanName, Object singletonObject) {
+        singletonObjects.put(beanName, singletonObject);
     }
 }

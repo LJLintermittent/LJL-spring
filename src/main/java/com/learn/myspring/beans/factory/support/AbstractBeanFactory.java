@@ -3,17 +3,24 @@ package com.learn.myspring.beans.factory.support;
 import com.learn.myspring.beans.BeansException;
 import com.learn.myspring.beans.factory.BeanFactory;
 import com.learn.myspring.beans.factory.config.BeanDefinition;
+import com.learn.myspring.beans.factory.config.BeanPostProcessor;
+import com.learn.myspring.beans.factory.config.ConfigurableBeanFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Description:
  * date: 2021/8/5 18:50
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans.factory.support
  *
  * @author 李佳乐
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry implements BeanFactory {
+public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry implements ConfigurableBeanFactory {
+
+    private final List<BeanPostProcessor> beanPostProcessors = new ArrayList<BeanPostProcessor>();
 
     /**
      * 抽象类定义模板方法
@@ -30,7 +37,12 @@ public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry i
 
     @Override
     public Object getBean(String name, Object... args) throws BeansException {
-            return doGetBean(name, args);
+        return doGetBean(name, args);
+    }
+
+    @Override
+    public <T> T getBean(String name, Class<T> requiredType) throws BeansException {
+        return (T) getBean(name);
     }
 
     protected <T> T doGetBean(final String name, final Object[] args) {
@@ -51,4 +63,17 @@ public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry i
 
     protected abstract Object createBean(String beanName, BeanDefinition beanDefinition, Object[] args) throws BeansException;
 
+    @Override
+    public void addBeanPostProcessor(BeanPostProcessor beanPostProcessor){
+        this.beanPostProcessors.remove(beanPostProcessor);
+        this.beanPostProcessors.add(beanPostProcessor);
+    }
+
+    /**
+     * Return the list of BeanPostProcessors that will get applied
+     * to beans created with this factory.
+     */
+    public List<BeanPostProcessor> getBeanPostProcessors() {
+        return this.beanPostProcessors;
+    }
 }

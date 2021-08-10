@@ -4,7 +4,7 @@
     <bean id="userDao" class="com.learn.test.bean.UserDao"/>
 
     <bean id="serServiceImpl" class="com.learn.test.bean.UserServiceImpl">
-        <property name="uid" value="1"/>
+        <property name="uid" value="01"/>
         <property name="userDao" ref="userDao"/>
     </bean>
 

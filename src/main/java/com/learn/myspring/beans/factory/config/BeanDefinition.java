@@ -5,7 +5,7 @@ import com.learn.myspring.beans.PropertyValues;
 /**
  * Description:
  * date: 2021/8/5 18:41
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans.factory.config
  *
  * @author 李佳乐
  * @email 18066550996@163.com
@@ -22,7 +22,6 @@ public class BeanDefinition {
      * Bean的属性集合，用于将Bean实例化完成以后进行属性填充，如果有的话
      */
     private PropertyValues propertyValues;
-
 
     public BeanDefinition(Class beanClass) {
         this.beanClass = beanClass;

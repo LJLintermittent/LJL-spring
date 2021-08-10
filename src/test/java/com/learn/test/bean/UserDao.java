@@ -16,9 +16,9 @@ public class UserDao {
     private static final Map<String, String> map = new HashMap<>();
 
     static {
-        map.put("1", "aaa");
-        map.put("2", "bbb");
-        map.put("3", "ccc");
+        map.put("01", "aaa");
+        map.put("02", "bbb");
+        map.put("03", "ccc");
     }
 
     public String queryUserName(String uid) {

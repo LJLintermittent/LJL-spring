@@ -1,7 +1,6 @@
 package com.learn.myspring.core.io;
 
 import cn.hutool.core.lang.Assert;
-import com.learn.myspring.core.io.Resource;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +11,7 @@ import java.net.URLConnection;
 /**
  * Description:
  * date: 2021/8/9 22:43
- * Package: com.learn.myspring.io
+ * Package: com.learn.myspring.core.io
  *
  * @author 李佳乐
  * @email 18066550996@163.com

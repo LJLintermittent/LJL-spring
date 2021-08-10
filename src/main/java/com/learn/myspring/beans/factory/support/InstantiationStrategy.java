@@ -8,7 +8,7 @@ import java.lang.reflect.Constructor;
 /**
  * Description:
  * date: 2021/8/6 21:52
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans.factory.support
  *
  * @author 李佳乐
  * @email 18066550996@163.com
@@ -26,7 +26,8 @@ public interface InstantiationStrategy {
      * @return
      * @throws BeansException
      */
-    Object instantiate(BeanDefinition beanDefinition, String beanName, Constructor constructor, Object[] args) throws BeansException;
+    Object instantiate(BeanDefinition beanDefinition, String beanName, Constructor constructor, Object[] args)
+            throws BeansException;
 
 
 }

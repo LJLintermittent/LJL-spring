@@ -1,6 +1,5 @@
 package com.learn.myspring.beans;
 
-import com.learn.myspring.beans.PropertyValue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +7,7 @@ import java.util.List;
 /**
  * Description:
  * date: 2021/8/7 17:31
- * Package: com.learn.myspring.core
+ * Package: com.learn.myspring.beans
  *
  * @author 李佳乐
  * @email 18066550996@163.com

@@ -20,8 +20,8 @@ public class XMLTest {
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
         XmlBeanDefinitionReader reader  = new XmlBeanDefinitionReader(beanFactory);
         reader.loadBeanDefinitions("classpath:spring.xml");
-        UserServiceImpl userService = (UserServiceImpl) beanFactory.getBean("serServiceImpl", UserServiceImpl.class);
-        String result = userService.queryUserInfo();
+        UserServiceImpl userServiceImpl = beanFactory.getBean("userServiceImpl", UserServiceImpl.class);
+        String result = userServiceImpl.queryUserInfo();
         System.out.println("测试结果：" + result);
 
     }
