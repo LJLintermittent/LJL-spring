@@ -12,11 +12,12 @@ import com.learn.myspring.beans.BeansException;
  */
 @SuppressWarnings("all")
 //xml文件应用上下文
-public abstract class ClassPathXmlApplicationContext extends AbstractXmlApplicationContext {
+public class ClassPathXmlApplicationContext extends AbstractXmlApplicationContext {
 
     private String[] configLocations;
 
     public ClassPathXmlApplicationContext() {
+
     }
 
     /**

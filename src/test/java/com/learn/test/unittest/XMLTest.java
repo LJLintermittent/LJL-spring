@@ -2,7 +2,8 @@ package com.learn.test.unittest;
 
 import com.learn.myspring.beans.factory.support.DefaultListableBeanFactory;
 import com.learn.myspring.beans.factory.xml.XmlBeanDefinitionReader;
-import com.learn.test.bean.UserServiceImpl;
+import com.learn.myspring.context.support.ClassPathXmlApplicationContext;
+import com.learn.test.bean.UserService;
 import org.junit.Test;
 
 /**
@@ -18,11 +19,21 @@ public class XMLTest {
     @Test
     public void test_xml() {
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
-        XmlBeanDefinitionReader reader  = new XmlBeanDefinitionReader(beanFactory);
+        XmlBeanDefinitionReader reader = new XmlBeanDefinitionReader(beanFactory);
         reader.loadBeanDefinitions("classpath:spring.xml");
-        UserServiceImpl userServiceImpl = beanFactory.getBean("userServiceImpl", UserServiceImpl.class);
-        String result = userServiceImpl.queryUserInfo();
-        System.out.println("测试结果：" + result);
+        UserService userService = beanFactory.getBean("userService", UserService.class);
+        String s = userService.queryUserInfo();
+        System.out.println("测试结果：" + s);
+    }
 
+    @Test
+    public void test_xml2() {
+        // 1.初始化 BeanFactory
+        ClassPathXmlApplicationContext applicationContext =
+                new ClassPathXmlApplicationContext("classpath:springPostProcessor.xml");
+        // 2. 获取Bean对象调用方法
+        UserService userService = applicationContext.getBean("userService", UserService.class);
+        String result = userService.queryUserInfo();
+        System.out.println("测试结果：" + result);
     }
 }

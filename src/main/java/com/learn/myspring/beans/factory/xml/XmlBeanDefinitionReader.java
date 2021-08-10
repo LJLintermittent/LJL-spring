@@ -74,7 +74,7 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
         }
     }
 
-    private void doLoadBeanDefinitions(InputStream inputStream) throws ClassNotFoundException {
+    protected void doLoadBeanDefinitions(InputStream inputStream) throws ClassNotFoundException {
         Document document = XmlUtil.readXML(inputStream);
         Element root = document.getDocumentElement();
         NodeList childNodes = root.getChildNodes();
@@ -95,7 +95,7 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
             Class<?> clazz = Class.forName(className);
             //优先级id>name的实现
             String beanName = StrUtil.isNotEmpty(id) ? id : name;
-            if (StrUtil.isNotEmpty(beanName)) {
+            if (StrUtil.isEmpty(beanName)) {
                 beanName = StrUtil.lowerFirst(clazz.getSimpleName());
             }
             BeanDefinition beanDefinition = new BeanDefinition(clazz);
@@ -105,7 +105,7 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
                     continue;
                 }
                 //解析标签 <property/>
-                if ("property".equals(bean.getChildNodes().item(j).getNodeName())) {
+                if (!"property".equals(bean.getChildNodes().item(j).getNodeName())) {
                     continue;
                 }
                 Element property = (Element) bean.getChildNodes().item(j);

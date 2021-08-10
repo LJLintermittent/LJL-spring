@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans>
+
+    <bean id="userDao" class="com.learn.test.bean.UserDao"/>
+
+    <bean id="userService" class="com.learn.test.bean.UserService">
+        <property name="uId" value="2"/>
+        <property name="company" value="腾讯"/>
+        <property name="location" value="深圳"/>
+        <property name="userDao" ref="userDao"/>
+    </bean>
+
+    <bean class="com.learn.test.common.MyBeanFactoryPostProcessor"/>
+    <bean class="com.learn.test.common.MyBeanPostProcessor"/>
+
+</beans>
