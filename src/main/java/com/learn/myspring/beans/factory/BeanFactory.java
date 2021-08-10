@@ -1,0 +1,31 @@
+package com.learn.myspring.beans.factory;
+
+import com.learn.myspring.beans.BeansException;
+
+/**
+ * Description:
+ * date: 2021/8/5 18:51
+ * Package: com.learn.myspring.core
+ *
+ * @author 李佳乐
+ * @email 18066550996@163.com
+ */
+@SuppressWarnings("all")
+public interface BeanFactory {
+
+    Object getBean(String name) throws BeansException;
+
+    // 解决实例化带有构造器的Bean对象时的入参问题
+    // 重载，方法名相同的方法 可以有不同的参数列表，方法返回值可以相同，也可以不同
+    // 方法的重载和重写都是实现多态的方式，区别在于前者实现的是编译时的多态性，
+    // 而后者实现的是运行时的多态性。重载发生在一个类中，
+    // 同名的方法如果有不同的参数列表（参数类型不同、参数个数不同或者二者都不同）则视为重载；
+    // 重写发生在子类与父类之间，重写要求子类被重写方法与父类被重写方法有相同的参数列表，
+    // 有兼容的返回类型，比父类被重写方法更好访问，不能比父类被重写方法声明更多的异常（里氏代换原则）。
+    // 重载对返回类型没有特殊的要求，不能根据返回类型进行区分。
+
+
+    // BeanFactory 中我们重载了一个含有入参信息 args 的 getBean 方法，这样就可以方便的传递入参给构造函数实例化了。
+    Object getBean(String name, Object... args) throws BeansException;
+
+}
