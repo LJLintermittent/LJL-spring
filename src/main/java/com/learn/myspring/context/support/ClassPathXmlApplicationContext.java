@@ -11,7 +11,7 @@ import com.learn.myspring.beans.BeansException;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-//xml文件应用上下文
+//xml文件应用上下文实现类，是具体对外给用户提供的应用上下文类
 public class ClassPathXmlApplicationContext extends AbstractXmlApplicationContext {
 
     private String[] configLocations;

@@ -17,8 +17,7 @@ public class UserService {
     private UserDao userDao;
 
     public String queryUserInfo() {
-        return userDao.queryUserName(uId) + "," + company + "," + location;
-//        return userDao.queryUserName(uId);
+        return userDao.queryUserName(uId) + "在" + location + "--" + company + "工作";
     }
 
     public String getuId() {

@@ -11,6 +11,7 @@ import com.learn.myspring.beans.BeansException;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
+// refresh方法非常核心，需要在应用上下文中完成刷新容器的操作
 public interface ConfigurableApplicationContext extends ApplicationContext {
 
     /**

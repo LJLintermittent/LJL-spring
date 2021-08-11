@@ -18,7 +18,9 @@ import java.util.Map;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-//抽象应用上下文
+// 抽象应用上下文
+// AbstractApplicationContext继承了DefaultResourceLoader是为了处理spring.xml配置文件的加载
+// 之后定义了refresh方法的实现过程
 public abstract class AbstractApplicationContext extends DefaultResourceLoader implements ConfigurableApplicationContext {
 
     @Override

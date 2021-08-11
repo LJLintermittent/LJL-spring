@@ -4,7 +4,7 @@
     <bean id="userDao" class="com.learn.test.bean.UserDao"/>
 
     <bean id="userService" class="com.learn.test.bean.UserService">
-        <property name="uid" value="1"/>
+        <property name="uId" value="2"/>
         <property name="company" value="腾讯"/>
         <property name="location" value="深圳"/>
         <property name="userDao" ref="userDao"/>
