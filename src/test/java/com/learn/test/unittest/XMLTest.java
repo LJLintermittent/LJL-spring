@@ -50,4 +50,29 @@ public class XMLTest {
         String result = userService.queryUserInfo();
         System.out.println("测试结果：" + result);
     }
+
+    /**
+     * 测试初始化方法和销毁方法：
+     * 此次测试主要完成了关于初始和销毁在使用接口定义 implements InitializingBean, DisposableBean
+     * 和在spring.xml中配置 init-method="initDataMethod" destroy-method="destroyDataMethod"
+     * 的两种具体在 AbstractAutowireCapableBeanFactory 完成初始方法和 AbstractApplicationContext
+     * 处理销毁动作的具体实现过程
+     *
+     * 目前为止，此框架既可以在Bean注册完成实例化之前进行BeanFactoryPostProcessor 操作，
+     * 也可以在实例化过程中执行前置操作和后置操作，现在又可以执行Bean的初始化方法和销毁方法
+     */
+    @Test
+    public void test_xml3(){
+        ClassPathXmlApplicationContext applicationContext =
+                new ClassPathXmlApplicationContext("classpath:spring1.xml");
+        applicationContext.registerShutdownHook();
+        UserService userService = applicationContext.getBean("userService", UserService.class);
+        String result = userService.queryUserInfo();
+        System.out.println("测试结果：" + result);
+    }
+
+    @Test
+    public void test_hook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> System.out.println("close！")));
+    }
 }

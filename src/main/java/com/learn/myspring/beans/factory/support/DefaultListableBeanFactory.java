@@ -7,6 +7,7 @@ import com.learn.myspring.beans.factory.config.BeanDefinition;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Description:
@@ -31,7 +32,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
      * 都集中在 DefaultListableBeanFactory 中的 beanDefinitionMap 里
      */
 
-    private Map<String, BeanDefinition> beanDefinitionMap = new HashMap<>();
+    private Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>();
 
     @Override
     public BeanDefinition getBeanDefinition(String beanName) throws BeansException {
@@ -73,4 +74,5 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
     public String[] getBeanDefinitionNames() {
         return beanDefinitionMap.keySet().toArray(new String[0]);
     }
+
 }

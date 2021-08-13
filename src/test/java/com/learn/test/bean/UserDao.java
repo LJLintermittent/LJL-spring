@@ -13,12 +13,18 @@ import java.util.Map;
  */
 public class UserDao {
 
-    private static Map<String, String> map = new HashMap<>();
+    private static final Map<String, String> map = new HashMap<>();
 
-    static {
-        map.put("1", "断续");
-        map.put("2", "李佳乐");
-        map.put("3", "进阿里");
+    public void initDataMethod() {
+        System.out.println("执行：init-method");
+        map.put("1", "李佳乐");
+        map.put("2", "断续");
+        map.put("3", "LJL");
+    }
+
+    public void destroyDataMethod() {
+        System.out.println("执行：destroy-method");
+        map.clear();
     }
 
     public String queryUserName(String uId) {

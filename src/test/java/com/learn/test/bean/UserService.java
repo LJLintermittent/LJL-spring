@@ -1,5 +1,8 @@
 package com.learn.test.bean;
 
+import com.learn.myspring.beans.factory.DisposableBean;
+import com.learn.myspring.beans.factory.InitializingBean;
+
 /**
  * Description:
  * date: 2021/8/10 15:37
@@ -9,12 +12,23 @@ package com.learn.test.bean;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-public class UserService {
+public class UserService implements InitializingBean, DisposableBean {
 
     private String uId;
     private String company;
     private String location;
     private UserDao userDao;
+
+    @Override
+    public void destroy() throws Exception {
+        System.out.println("执行：UserService.destroy");
+    }
+
+    @Override
+    //在属性设置后执行
+    public void afterPropertiesSet() throws Exception {
+        System.out.println("执行：UserService.afterPropertiesSet");
+    }
 
     public String queryUserInfo() {
         return userDao.queryUserName(uId) + "在" + location + "--" + company + "工作";
@@ -51,4 +65,6 @@ public class UserService {
     public void setUserDao(UserDao userDao) {
         this.userDao = userDao;
     }
+
+
 }
