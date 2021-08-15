@@ -5,8 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.learn.myspring.beans.BeansException;
 import com.learn.myspring.beans.PropertyValue;
 import com.learn.myspring.beans.PropertyValues;
-import com.learn.myspring.beans.factory.DisposableBean;
-import com.learn.myspring.beans.factory.InitializingBean;
+import com.learn.myspring.beans.factory.*;
 import com.learn.myspring.beans.factory.config.AutowireCapableBeanFactory;
 import com.learn.myspring.beans.factory.config.BeanDefinition;
 import com.learn.myspring.beans.factory.config.BeanPostProcessor;
@@ -33,7 +32,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
     /**
      * 在 AbstractAutowireCapableBeanFactory 类中实现了 Bean 的实例化操作 newInstance
      * 在处理完 Bean 对象的实例化后，直接调用 addSingleton 方法存放到单例对象的缓存中去。
-     *
      */
     @Override
     protected Object createBean(String beanName, BeanDefinition beanDefinition, Object[] args) throws BeansException {
@@ -48,12 +46,12 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
             throw new BeansException("Instantiation of bean failed", e);
         }
         //注册实现了 DisposableBean 接口的 Bean 对象,在创建Bean时注册销毁方法对象
-        registerDisposableBeanIfNecessary(beanName,bean,beanDefinition);
+        registerDisposableBeanIfNecessary(beanName, bean, beanDefinition);
         addSingleton(beanName, bean);
         return bean;
     }
 
-    protected void registerDisposableBeanIfNecessary(String beanName, Object bean, BeanDefinition beanDefinition){
+    protected void registerDisposableBeanIfNecessary(String beanName, Object bean, BeanDefinition beanDefinition) {
         if (bean instanceof DisposableBean || StrUtil.isNotEmpty(beanDefinition.getDestroyMethodName())) {
             registerDisposableBean(beanName, new DisposableBeanAdapter(bean, beanName, beanDefinition));
         }
@@ -101,6 +99,20 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
     }
 
     private Object initializeBean(String beanName, Object bean, BeanDefinition beanDefinition) {
+        // 通过判断 bean instanceof Aware，调用了三个接口方法，BeanFactoryAware.setBeanFactory(this)、
+        // BeanClassLoaderAware.setBeanClassLoader(getBeanClassLoader())、BeanNameAware.setBeanName(beanName)，
+        // 这样就能通知到已经实现了此接口的类
+        if (bean instanceof Aware) {
+            if (bean instanceof BeanFactoryAware) {
+                ((BeanFactoryAware) bean).setBeanFactory(this);
+            }
+            if (bean instanceof BeanClassLoaderAware) {
+                ((BeanClassLoaderAware) bean).setBeanClassLoader(getBeanClassLoader());
+            }
+            if (bean instanceof BeanNameAware) {
+                ((BeanNameAware) bean).setBeanName(beanName);
+            }
+        }
         // 1. 执行 BeanPostProcessor Before 处理
         Object wrappedBean = applyBeanPostProcessorsBeforeInitialization(bean, beanName);
         // 执行 Bean 对象的初始化方法
@@ -136,7 +148,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         Object result = existingBean;
         for (BeanPostProcessor processor : getBeanPostProcessors()) {
             Object current = processor.postProcessBeforeInitialization(result, beanName);
-            if (null == current) return result;
+            if (null == current) {
+                return result;
+            }
             result = current;
         }
         return result;
@@ -147,7 +161,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         Object result = existingBean;
         for (BeanPostProcessor processor : getBeanPostProcessors()) {
             Object current = processor.postProcessAfterInitialization(result, beanName);
-            if (null == current) return result;
+            if (null == current) {
+                return result;
+            }
             result = current;
         }
         return result;
