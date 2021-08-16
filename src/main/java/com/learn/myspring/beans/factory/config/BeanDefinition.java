@@ -47,8 +47,7 @@ public class BeanDefinition {
     private boolean prototype = false;
 
     public BeanDefinition(Class beanClass) {
-        this.beanClass = beanClass;
-        this.propertyValues = new PropertyValues();
+        this(beanClass,null);
     }
 
     /**
@@ -97,6 +96,8 @@ public class BeanDefinition {
 
     public void setScope(String scope) {
         this.scope = scope;
+        this.singleton = SCOPE_SINGLETON.equals(scope);
+        this.prototype = SCOPE_PROTOTYPE.equals(scope);
     }
 
     public boolean isSingleton() {

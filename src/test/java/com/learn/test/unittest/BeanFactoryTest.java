@@ -25,6 +25,10 @@ public class BeanFactoryTest {
         applicationContext.registerShutdownHook();
         UserServiceForFactory userService1 = applicationContext.getBean("userService", UserServiceForFactory.class);
         UserServiceForFactory userService2 = applicationContext.getBean("userService", UserServiceForFactory.class);
+        /*
+            对象1：com.learn.test.bean.UserServiceForFactory$$EnhancerByCGLIB$$5983174e@49e4cb85
+            对象2：com.learn.test.bean.UserServiceForFactory$$EnhancerByCGLIB$$5983174e@2133c8f8
+         */
         System.out.println("对象1：" + userService1);
         System.out.println("对象2：" + userService2);
 
@@ -33,7 +37,7 @@ public class BeanFactoryTest {
     }
 
     @Test
-    public void test_factory_bean(){
+    public void test_factory_bean() {
         ClassPathXmlApplicationContext applicationContext =
                 new ClassPathXmlApplicationContext("classpath:spring4.xml");
         applicationContext.registerShutdownHook();
