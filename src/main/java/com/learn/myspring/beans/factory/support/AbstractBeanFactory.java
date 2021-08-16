@@ -2,6 +2,7 @@ package com.learn.myspring.beans.factory.support;
 
 import com.learn.myspring.beans.BeansException;
 import com.learn.myspring.beans.factory.BeanFactory;
+import com.learn.myspring.beans.factory.FactoryBean;
 import com.learn.myspring.beans.factory.config.BeanDefinition;
 import com.learn.myspring.beans.factory.config.BeanPostProcessor;
 import com.learn.myspring.beans.factory.config.ConfigurableBeanFactory;
@@ -19,7 +20,7 @@ import java.util.List;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry implements ConfigurableBeanFactory {
+public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport implements ConfigurableBeanFactory {
 
     private final List<BeanPostProcessor> beanPostProcessors = new ArrayList<BeanPostProcessor>();
 
@@ -49,12 +50,27 @@ public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry i
     }
 
     protected <T> T doGetBean(final String name, final Object[] args) {
-        Object bean = getSingleton(name);
-        if (bean != null) {
-            return (T) bean;
+        Object sharedInstance = getSingleton(name);
+        if (sharedInstance != null) {
+            return (T) getObjectForBeanInstance(sharedInstance, name);
         }
         BeanDefinition beanDefinition = getBeanDefinition(name);
-        return (T) createBean(name, beanDefinition, args);
+        Object bean = createBean(name, beanDefinition, args);
+        return (T) getObjectForBeanInstance(bean, name);
+    }
+
+    // 获取FactoryBean
+    private Object getObjectForBeanInstance(Object beanInstance, String beanName) {
+        if (!(beanInstance instanceof FactoryBean)) {
+            return beanInstance;
+        }
+        // 从 FactoryBean 的缓存中获取对象
+        Object object = getCachedObjectForFactoryBean(beanName);
+        if (object == null) {
+            FactoryBean<?> factoryBean = (FactoryBean<?>) beanInstance;
+            object = getObjectFromFactoryBean(factoryBean, beanName);
+        }
+        return object;
     }
 
     /**

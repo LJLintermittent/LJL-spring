@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans>
+
+    <bean id="userService" class="com.learn.test.bean.UserServiceForFactory" scope="prototype">
+        <property name="uId" value="1"/>
+        <property name="company" value="阿里巴巴"/>
+        <property name="location" value="杭州"/>
+        <property name="userDao" ref="proxyUserDao"/>
+    </bean>
+
+    <!--使用代理类proxyUserDao来代理 userDao，并注入到userService，模拟mybatis框架中的代理操作-->
+    <bean id="proxyUserDao" class="com.learn.test.bean.ProxyBeanFactory"/>
+
+</beans>
