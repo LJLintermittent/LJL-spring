@@ -4,9 +4,10 @@ import com.learn.myspring.beans.BeansException;
 import com.learn.myspring.beans.factory.DisposableBean;
 import com.learn.myspring.beans.factory.config.SingletonBeanRegistry;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Description:
@@ -25,13 +26,24 @@ public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
      * 包括：AbstractBeanFactory 以及继承的 DefaultListableBeanFactory 调用。
      */
 
-    private Map<String, Object> singletonObjects = new HashMap<>();
+    /**
+     * Internal marker for a null singleton object:
+     * used as marker value for concurrent Maps (which don't support null values).
+     */
+    protected static final Object NULL_OBJECT = new Object();
 
-    private Map<String, DisposableBean> disposableBeanMap = new HashMap<>();
+    private Map<String, Object> singletonObjects = new ConcurrentHashMap<>();
+
+    private Map<String, DisposableBean> disposableBeanMap = new LinkedHashMap<>();
 
     @Override
     public Object getSingleton(String name) {
         return singletonObjects.get(name);
+    }
+
+    @Override
+    public void registerSingleton(String beanName, Object singletonObject) {
+        singletonObjects.put(beanName,singletonObject);
     }
 
     // 这个方法可以被继承此类的其他类调用。

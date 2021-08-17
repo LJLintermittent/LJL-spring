@@ -11,7 +11,9 @@ package com.learn.myspring.beans.factory.config;
 @SuppressWarnings("all")
 public interface SingletonBeanRegistry {
 
-    //获取单例对象的接口
+    //获取单例对象
     Object getSingleton(String name);
+
+    void registerSingleton(String beanName, Object singletonObject);
 
 }
