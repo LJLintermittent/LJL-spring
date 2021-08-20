@@ -3,7 +3,7 @@
 
     <bean id="userService" class="com.learn.test.bean.springaop.UserService"/>
 
-    <bean class="com.learn.myspring.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"/>
+    <bean id="defaultAdvisorAutoProxyCreator" class="com.learn.myspring.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"/>
 
     <bean id="beforeAdvice" class="com.learn.test.bean.springaop.UserServiceBeforeAdvice"/>
 
