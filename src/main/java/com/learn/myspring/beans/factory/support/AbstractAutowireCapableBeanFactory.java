@@ -54,7 +54,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
          * 每次获取都重新创建对象，另外非 Singleton 类型的 Bean 不需要执行销毁方法
          */
         if (beanDefinition.isSingleton()) {
-            addSingleton(beanName, bean);
+            registerSingleton(beanName, bean);
         }
         return bean;
     }
