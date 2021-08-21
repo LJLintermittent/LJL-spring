@@ -26,7 +26,7 @@ public class AspectJExpressionPointcutAdvisor implements PointcutAdvisor {
     // 表达式
     private String expression;
 
-    public void setExpression(String expression){
+    public void setExpression(String expression) {
         this.expression = expression;
     }
 
@@ -43,9 +43,8 @@ public class AspectJExpressionPointcutAdvisor implements PointcutAdvisor {
         return advice;
     }
 
-    public void setAdvice(Advice advice){
+    public void setAdvice(Advice advice) {
         this.advice = advice;
     }
-
 
 }

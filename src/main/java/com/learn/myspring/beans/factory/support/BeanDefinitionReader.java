@@ -16,11 +16,8 @@ import com.learn.myspring.core.io.ResourceLoader;
 //Bean定义读取接口
 public interface BeanDefinitionReader {
 
-    // Bean定义的注册
     BeanDefinitionRegistry getRegistry();
 
-    // 资源加载器，以上两个方法都是提供给后面三个方法的工具，
-    // 这两个方法的实现会包装到抽象类中，以免污染具体的接口实现方法
     ResourceLoader getResourceLoader();
 
     void loadBeanDefinitions(Resource resource) throws BeansException;

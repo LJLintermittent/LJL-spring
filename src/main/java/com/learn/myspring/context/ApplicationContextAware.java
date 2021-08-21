@@ -12,7 +12,7 @@ import com.learn.myspring.beans.factory.Aware;
  * @email 18066550996@163.com
  */
 //Interface to be implemented by any object that wishes to be notifiedof the {@link ApplicationContext} that it runs in.
-//实现此接口，既能感知到所属的 ApplicationContext
+//实现此接口，即能感知到所属的 ApplicationContext
 public interface ApplicationContextAware extends Aware {
 
     void setApplicationContext(ApplicationContext applicationContext) throws BeansException;

@@ -15,7 +15,7 @@ import com.learn.myspring.core.io.ResourceLoader;
 //抽象类实现了BeanDefinitionReader的前两个方法，并提供了构造函数，让外部的调用使用方，把Bean定义注入类，传递进来
 public abstract class AbstractBeanDefinitionReader implements BeanDefinitionReader {
 
-    private final BeanDefinitionRegistry beanDefinitionRegistry;
+    private final BeanDefinitionRegistry registry;
 
     private ResourceLoader resourceLoader;
 
@@ -24,13 +24,13 @@ public abstract class AbstractBeanDefinitionReader implements BeanDefinitionRead
     }
 
     public AbstractBeanDefinitionReader(BeanDefinitionRegistry registry, ResourceLoader resourceLoader) {
-        this.beanDefinitionRegistry = registry;
+        this.registry = registry;
         this.resourceLoader = resourceLoader;
     }
 
     @Override
     public BeanDefinitionRegistry getRegistry() {
-        return beanDefinitionRegistry;
+        return registry;
     }
 
     @Override
