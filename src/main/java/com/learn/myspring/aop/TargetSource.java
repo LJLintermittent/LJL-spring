@@ -1,5 +1,7 @@
 package com.learn.myspring.aop;
 
+import com.learn.myspring.utils.ClassUtils;
+
 /**
  * Description:
  * date: 2021/8/18 17:39
@@ -22,19 +24,24 @@ public class TargetSource {
      * <p>Can return <code>null</code>, although certain usages of a
      * <code>TargetSource</code> might just work with a predetermined
      * target class.
+     *
      * @return the type of targets returned by this {@link TargetSource}
+     * getTargetClass()是用于获取target对象的接口信息的，那么这个target有可能是jdk代理创建也可能是cglib创建
      */
-    public Class<?>[] getTargetClass(){
-        return this.target.getClass().getInterfaces();
+    public Class<?>[] getTargetClass() {
+        Class<?> clazz = this.target.getClass();
+        clazz = ClassUtils.isCglibProxyClass(clazz) ? clazz.getSuperclass() : clazz;
+        return clazz.getInterfaces();
     }
 
     /**
      * Return a target instance. Invoked immediately before the
      * AOP framework calls the "target" of an AOP method invocation.
+     *
      * @return the target object, which contains the joinpoint
      * @throws Exception if the target object can't be resolved
      */
-    public Object getTarget(){
+    public Object getTarget() {
         return this.target;
     }
 }
