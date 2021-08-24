@@ -37,7 +37,8 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
                 registry.registerBeanDefinition(determineBeanName(beanDefinition), beanDefinition);
             }
         }
-        registry.registerBeanDefinition("cmo.learn.myspring.context.annotation.internalAutowiredAnnotationProcessor",
+        // 注册处理注解的 BeanPostProcessor（@Autowired、@Value）
+        registry.registerBeanDefinition("com.learn.myspring.context.annotation.internalAutowiredAnnotationProcessor",
                 new BeanDefinition(AutowiredAnnotationBeanPostProcessor.class));
     }
 

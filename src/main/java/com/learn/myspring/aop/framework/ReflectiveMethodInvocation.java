@@ -17,10 +17,8 @@ public class ReflectiveMethodInvocation implements MethodInvocation {
 
     // 目标对象
     protected final Object target;
-
     // 方法
     protected final Method method;
-
     // 入参
     protected final Object[] arguments;
 

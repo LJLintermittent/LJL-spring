@@ -12,7 +12,7 @@ import com.learn.myspring.beans.PropertyValues;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor{
+public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
 
     /**
      * Apply this BeanPostProcessor <i>before the target bean gets instantiated</i>.
@@ -58,4 +58,15 @@ public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor{
      * @throws BeansException
      */
     PropertyValues postProcessPropertyValues(PropertyValues pvs, Object bean, String beanName) throws BeansException;
+
+    /**
+     * 在 Spring 中由 SmartInstantiationAwareBeanPostProcessor#getEarlyBeanReference 提供
+     *
+     * @param bean
+     * @param beanName
+     * @return
+     */
+    default Object getEarlyBeanReference(Object bean, String beanName) {
+        return bean;
+    }
 }

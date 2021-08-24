@@ -26,7 +26,6 @@ public class TargetSource {
      * target class.
      *
      * @return the type of targets returned by this {@link TargetSource}
-     * getTargetClass()是用于获取target对象的接口信息的，那么这个target有可能是jdk代理创建也可能是cglib创建
      */
     public Class<?>[] getTargetClass() {
         Class<?> clazz = this.target.getClass();
@@ -44,4 +43,5 @@ public class TargetSource {
     public Object getTarget() {
         return this.target;
     }
+
 }

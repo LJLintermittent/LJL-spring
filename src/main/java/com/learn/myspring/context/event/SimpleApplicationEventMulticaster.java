@@ -20,10 +20,9 @@ public class SimpleApplicationEventMulticaster extends AbstractApplicationEventM
 
     @SuppressWarnings("all")
     @Override
-    public void multicastEvent(ApplicationEvent event) {
+    public void multicastEvent(final ApplicationEvent event) {
         for (final ApplicationListener listener : getApplicationListeners(event)) {
             listener.onApplicationEvent(event);
         }
-
     }
 }

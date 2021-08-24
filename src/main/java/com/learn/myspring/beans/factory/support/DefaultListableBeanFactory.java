@@ -34,7 +34,6 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
      * 都集中在 DefaultListableBeanFactory 中的 beanDefinitionMap 里
      */
 
-
     private Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>();
 
     @Override
