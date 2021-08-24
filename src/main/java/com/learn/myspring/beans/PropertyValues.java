@@ -19,11 +19,10 @@ public class PropertyValues {
      * 此类和PropertyValue的作用是创建出一个用于传递类中属性信息的类，因为属性可能会有很多，
      * 所以还需要一个集合包来装下
      */
-
     private final List<PropertyValue> propertyValueList = new ArrayList<>();
 
-    public void addPropertyValue(PropertyValue propertyValue) {
-        this.propertyValueList.add(propertyValue);
+    public void addPropertyValue(PropertyValue pv) {
+        this.propertyValueList.add(pv);
     }
 
     public PropertyValue[] getPropertyValues() {
@@ -31,12 +30,13 @@ public class PropertyValues {
     }
 
     public PropertyValue getPropertyValue(String propertyName) {
-        for (PropertyValue propertyValue : this.propertyValueList) {
-            if (propertyValue.getName().equals(propertyName)) {
-                return propertyValue;
+        for (PropertyValue pv : this.propertyValueList) {
+            if (pv.getName().equals(propertyName)) {
+                return pv;
             }
         }
         return null;
     }
+
 
 }

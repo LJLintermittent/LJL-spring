@@ -26,8 +26,14 @@ import java.util.Properties;
 @SuppressWarnings("all")
 public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
 
+    /**
+     * Default placeholder prefix: {@value}
+     */
     public static final String DEFAULT_PLACEHOLDER_PREFIX = "${";
 
+    /**
+     * Default placeholder suffix: {@value}
+     */
     public static final String DEFAULT_PLACEHOLDER_SUFFIX = "}";
 
     private String location;
@@ -38,6 +44,7 @@ public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
             // 加载属性文件
             DefaultResourceLoader resourceLoader = new DefaultResourceLoader();
             Resource resource = resourceLoader.getResource(location);
+
             // 占位符替换属性值
             Properties properties = new Properties();
             properties.load(resource.getInputStream());
@@ -54,6 +61,7 @@ public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
                     propertyValues.addPropertyValue(new PropertyValue(propertyValue.getName(), value));
                 }
             }
+
             // 向容器中添加字符串解析器，供解析@Value注解使用
             StringValueResolver valueResolver = new PlaceholderResolvingStringValueResolver(properties);
             beanFactory.addEmbeddedValueResolver(valueResolver);
@@ -92,6 +100,8 @@ public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
         public String resolveStringValue(String strVal) {
             return PropertyPlaceholderConfigurer.this.resolvePlaceholder(strVal, properties);
         }
+
     }
+
 
 }

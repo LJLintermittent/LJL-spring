@@ -14,6 +14,7 @@ import org.junit.Test;
  * @email 18066550996@163.com
  */
 public class unit17Test {
+
     @Test
     public void test_circular() {
         ClassPathXmlApplicationContext applicationContext =

@@ -26,9 +26,7 @@ import java.lang.reflect.Method;
 public class DisposableBeanAdapter implements DisposableBean {
 
     private final Object bean;
-
     private final String beanName;
-
     private String destroyMethodName;
 
     public DisposableBeanAdapter(Object bean, String beanName, BeanDefinition beanDefinition) {
@@ -43,6 +41,7 @@ public class DisposableBeanAdapter implements DisposableBean {
         if (bean instanceof DisposableBean) {
             ((DisposableBean) bean).destroy();
         }
+
         // 2. 注解配置 destroy-method {判断是为了避免二次执行销毁}
         if (StrUtil.isNotEmpty(destroyMethodName) && !(bean instanceof DisposableBean && "destroy".equals(this.destroyMethodName))) {
             Method destroyMethod = bean.getClass().getMethod(destroyMethodName);
