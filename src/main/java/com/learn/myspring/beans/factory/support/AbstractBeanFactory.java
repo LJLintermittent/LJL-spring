@@ -61,6 +61,8 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
         }
 
         BeanDefinition beanDefinition = getBeanDefinition(name);
+        //刚开始创建的时候，单例池中为空，一二三级缓存全部获取一遍都获取不到，上面判空后来到这里
+        //进行Bean的创建
         Object bean = createBean(name, beanDefinition, args);
         return (T) getObjectForBeanInstance(bean, name);
     }

@@ -57,7 +57,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader i
         // 7. 注册事件监听器
         registerListeners();
 
-        // 8. 提前实例化单例Bean对象
+        // 8. 提前实例化单例Bean对象，涉及循环依赖的处理
         beanFactory.preInstantiateSingletons();
 
         // 9. 发布容器刷新完成事件

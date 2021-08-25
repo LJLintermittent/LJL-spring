@@ -33,7 +33,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         if (null != bean) {
             return bean;
         }
-
         return doCreateBean(beanName, beanDefinition, args);
     }
 
@@ -82,7 +81,8 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         Object exposedObject = bean;
         for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {
             if (beanPostProcessor instanceof InstantiationAwareBeanPostProcessor) {
-                exposedObject = ((InstantiationAwareBeanPostProcessor) beanPostProcessor).getEarlyBeanReference(exposedObject, beanName);
+                exposedObject = ((InstantiationAwareBeanPostProcessor) beanPostProcessor)
+                        .getEarlyBeanReference(exposedObject, beanName);
                 if (null == exposedObject) return exposedObject;
             }
         }
@@ -185,10 +185,11 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
                 if (value instanceof BeanReference) {
                     // A 依赖 B，获取 B 的实例化
                     BeanReference beanReference = (BeanReference) value;
+                    // 如果A中依赖B，那么在填充A的属性的时候，会走到这块，去创建B的实例
                     value = getBean(beanReference.getBeanName());
                 }
 
-                // 反射设置属性填充
+                // 反射设置属性填充，循环依赖的时候到这一步，B对象拿到了需要填充的属性A
                 BeanUtil.setFieldValue(bean, name, value);
             }
         } catch (Exception e) {
