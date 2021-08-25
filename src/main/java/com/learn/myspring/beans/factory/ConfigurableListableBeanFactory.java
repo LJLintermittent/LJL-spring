@@ -17,6 +17,11 @@ import com.learn.myspring.beans.factory.config.ConfigurableBeanFactory;
 @SuppressWarnings("all")
 public interface ConfigurableListableBeanFactory extends ListableBeanFactory, AutowireCapableBeanFactory, ConfigurableBeanFactory {
 
+    /*
+      ConfigurableListableBeanFactory集成了三大接口的职能以外，还扩展了修改Bean定义信息和分析Bean的功能
+      并且实现了预实例化单例Bean的功能，这个非常重要，在实例化单例Bean的时候，需要涉及对循环依赖的处理
+     */
+
     BeanDefinition getBeanDefinition(String beanName) throws BeansException;
 
     void preInstantiateSingletons() throws BeansException;

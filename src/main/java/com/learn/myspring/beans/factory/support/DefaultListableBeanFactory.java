@@ -22,6 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @SuppressWarnings("all")
 public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFactory implements BeanDefinitionRegistry, ConfigurableListableBeanFactory {
 
+    /*
+      DefaultListableBeanFactory提供了对Bean容器的完全成熟的默认实现，可以直接对外使用
+     */
+
     /**
      * DefaultListableBeanFactory 继承了 AbstractAutowireCapableBeanFactory 类，
      * 也就具备了接口 BeanFactory 和 AbstractBeanFactory 等一连串的功能实现。

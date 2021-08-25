@@ -13,6 +13,11 @@ import com.learn.myspring.beans.BeansException;
 @SuppressWarnings("all")
 public interface BeanFactory {
 
+    /*
+      BeanFactory接口是Bean容器设计中基本的职责定义接口，定义了按照名称，参数
+      以及requiredType，也就是类型这几个维度来获取Bean的职能
+     */
+
     Object getBean(String name) throws BeansException;
 
     // 解决实例化带有构造器的Bean对象时的入参问题

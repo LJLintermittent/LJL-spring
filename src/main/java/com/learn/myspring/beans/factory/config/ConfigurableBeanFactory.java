@@ -14,6 +14,11 @@ import com.learn.myspring.utils.StringValueResolver;
 @SuppressWarnings("all")
 public interface ConfigurableBeanFactory extends HierarchicalBeanFactory, SingletonBeanRegistry {
 
+    /*
+      ConfigurableBeanFactory在spring中提供了设置父容器接口，指定类加载器的职能，
+      并且为当前容器工厂设计Bean的定制型的解析处理器，类型处理器，主要目的是实现对BeanFactory的可配置性
+     */
+
     String SCOPE_SINGLETON = "singleton";
 
     String SCOPE_PROTOTYPE = "prototype";
@@ -27,6 +32,7 @@ public interface ConfigurableBeanFactory extends HierarchicalBeanFactory, Single
 
     /**
      * Add a String resolver for embedded values such as annotation attributes.
+     *
      * @param valueResolver the String resolver to apply to embedded values
      * @since 3.0
      */
@@ -34,6 +40,7 @@ public interface ConfigurableBeanFactory extends HierarchicalBeanFactory, Single
 
     /**
      * Resolve the given embedded value, e.g. an annotation attribute.
+     *
      * @param value the value to resolve
      * @return the resolved value (may be the original value as-is)
      * @since 3.0

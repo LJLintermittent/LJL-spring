@@ -23,6 +23,12 @@ import java.util.List;
 @SuppressWarnings("all")
 public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport implements ConfigurableBeanFactory {
 
+    /*
+      AbstractBeanFactory实现了对容器基本功能定义的模板式封装和实现，
+      同时实现了对Bean信息的注册，但是对Bean的创建和Bean定义信息的处理做了一个抽象化处理
+      交给其继承者来实现
+     */
+
     /**
      * ClassLoader to resolve bean class names with, if necessary
      */

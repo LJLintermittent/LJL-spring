@@ -16,6 +16,14 @@ import com.learn.myspring.beans.factory.support.DefaultListableBeanFactory;
 // 获取Bean工厂和加载资源
 public abstract class AbstractRefreshableApplicationContext extends AbstractApplicationContext {
 
+    /*
+      AbstractRefreshableApplicationContext是xmlwebapplicationcontext的核心父类
+      在本项目中省去了xmlwebapplicationcontext
+      仅用此接口来对AbstractApplicationContext的refreshBeanFactory做一个简单实现
+      同时本身又是一个抽象类，定义了两个抽象方法loadBeanDefinitions交给其他类去实现，做一个职责划分
+      并且提供了获取DefaultListableBeanFactory类的get方法
+     */
+
     private DefaultListableBeanFactory beanFactory;
 
     /**

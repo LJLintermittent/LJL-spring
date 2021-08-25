@@ -30,6 +30,12 @@ import java.util.Map;
 // 之后定义了refresh方法的实现过程
 public abstract class AbstractApplicationContext extends DefaultResourceLoader implements ConfigurableApplicationContext {
 
+    /*
+      AbstractApplicationContext是整个容器的核心处理类，是真正的spring的执行者，内部大量的模板方法，
+      实现了高复用和高扩展，实现了spring的启动，停止，刷新，事件推送，BeanFactory方法的默认实现getBean()
+      以及虚拟机注册钩子函数进行回调。
+     */
+
     public static final String APPLICATION_EVENT_MULTICASTER_BEAN_NAME = "applicationEventMulticaster";
 
     private ApplicationEventMulticaster applicationEventMulticaster;

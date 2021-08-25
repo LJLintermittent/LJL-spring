@@ -22,6 +22,12 @@ import java.lang.reflect.Method;
 @SuppressWarnings("all")
 public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory implements AutowireCapableBeanFactory {
 
+    /*
+      AbstractAutowireCapableBeanFactory主要解决Bean之间的依赖问题和注入问题，其中实现了Bean的创建方法
+      因为Bean并不是孤立存在的，很有可能存在Bean的相互依赖关系，所以只有在解决Bean的依赖的前提下，才能实现Bean的创建
+      这也就是AbstractBeanFactory不能直接创建Bean方法的原因
+     */
+
 //    private InstantiationStrategy instantiationStrategy = new CglibSubclassingInstantiationStrategy();
 
     private InstantiationStrategy instantiationStrategy = new SimpleInstantiationStrategy();

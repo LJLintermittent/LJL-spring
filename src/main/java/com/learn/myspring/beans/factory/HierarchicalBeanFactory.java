@@ -11,5 +11,9 @@ package com.learn.myspring.beans.factory;
  */
 @SuppressWarnings("all")
 public interface HierarchicalBeanFactory extends BeanFactory {
+    /*
+      在spring中HierarchicalBeanFactory只是对BeanFactory进行了扩展，定义了父容器以及按断
+      当前Bean的名称是否在当前Bean工厂中
+     */
 
 }
