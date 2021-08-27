@@ -14,6 +14,11 @@ import com.learn.myspring.beans.factory.config.BeanDefinition;
 @SuppressWarnings("all")
 public interface BeanDefinitionRegistry {
 
+    /*
+      BeanDefinitionRegistry用来把Bean的定义信息注册到容器中，spring注册bean时一般是在获取bean后用BeanDefinitionRegistry
+      把bean注册到当前的beanfactory中
+     */
+
     /**
      * 向注册表中注册 BeanDefinition
      *
@@ -33,6 +38,7 @@ public interface BeanDefinitionRegistry {
 
     /**
      * 判断是否包含指定名称的BeanDefinition
+     *
      * @param beanName
      * @return
      */
@@ -40,7 +46,7 @@ public interface BeanDefinitionRegistry {
 
     /**
      * Return the names of all beans defined in this registry.
-     *
+     * <p>
      * 返回注册表中所有的Bean名称
      */
     String[] getBeanDefinitionNames();

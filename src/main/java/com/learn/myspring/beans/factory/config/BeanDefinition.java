@@ -13,6 +13,11 @@ import com.learn.myspring.beans.PropertyValues;
 @SuppressWarnings("all")
 public class BeanDefinition {
 
+    /*
+      BeanDefinition用来定义Bean的作用范围，角色，依赖，懒加载等于spring容器运行和管理Bean息息相关的属性
+      以达到对Bean的spring特性的定制，是springBean描述定义信息的核心接口
+     */
+
     String SCOPE_SINGLETON = ConfigurableBeanFactory.SCOPE_SINGLETON;
 
     String SCOPE_PROTOTYPE = ConfigurableBeanFactory.SCOPE_PROTOTYPE;
