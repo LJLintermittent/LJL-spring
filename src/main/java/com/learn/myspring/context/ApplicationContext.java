@@ -20,7 +20,10 @@ public interface ApplicationContext extends ListableBeanFactory, HierarchicalBea
     /*
       ApplicationContext是整个容器的基本功能定义接口，继承的顶级接口是BeanFactory，说明容器也是工厂的多态实现
       运用了代理的设计方式，它的实现类相当于持有一个BeanFactory实例，这个实例替它执行BeanFactory接口定义的功能
+      虽然spring在ApplicationContext中也声明了BeanFactory接口中的功能,但是Beanfactory实例只是ApplicationContext中的一个属性
+      由这个属性来帮助ApplicationContext对外提供beanfactory定义的功能实现
+      ApplicationContext是围绕着spring的整体来设计的，从类型上看它虽然是Beanfactoy的实现类，但比beanfactory的功能更加强大，可以
+      理解为ApplicationContext接口扩展了Beanfactory接口
+      ApplicationContext是一个复杂的集成体，集成了环境接口，beanfactory接口，消息发布接口，配置源信息解析接口
      */
-
-
 }

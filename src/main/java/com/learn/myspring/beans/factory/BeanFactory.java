@@ -16,6 +16,8 @@ public interface BeanFactory {
     /*
       BeanFactory接口是Bean容器设计中基本的职责定义接口，定义了按照名称，参数
       以及requiredType，也就是类型这几个维度来获取Bean的职能
+      spring的核心功能是对Bean的定义注册和依赖，而spring容器提供了依赖注入这个特征，以实现spring容器对Bean的管理
+      而且使用IOC实现了对Bean的配置与业务代码的隔离
      */
 
     Object getBean(String name) throws BeansException;
@@ -29,7 +31,7 @@ public interface BeanFactory {
     // 有兼容的返回类型，比父类被重写方法更好访问，不能比父类被重写方法声明更多的异常（里氏代换原则）。
     // 重载对返回类型没有特殊的要求，不能根据返回类型进行区分。
 
-    // BeanFactory 中我们重载了一个含有入参信息 args 的 getBean 方法，这样就可以方便的传递入参给构造函数实例化了。
+    // BeanFactory 中我们重载了一含有入参信个息 args 的 getBean 方法，这样就可以方便的传递入参给构造函数实例化了。
     Object getBean(String name, Object... args) throws BeansException;
 
     <T> T getBean(String name, Class<T> requiredType) throws BeansException;

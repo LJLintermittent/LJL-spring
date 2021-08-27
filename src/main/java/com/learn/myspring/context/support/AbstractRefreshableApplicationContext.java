@@ -13,7 +13,7 @@ import com.learn.myspring.beans.factory.support.DefaultListableBeanFactory;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-// 获取Bean工厂和加载资源
+// 创建Bean工厂和加载资源
 public abstract class AbstractRefreshableApplicationContext extends AbstractApplicationContext {
 
     /*

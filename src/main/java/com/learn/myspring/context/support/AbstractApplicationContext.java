@@ -34,6 +34,13 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader i
       AbstractApplicationContext是整个容器的核心处理类，是真正的spring的执行者，内部大量的模板方法，
       实现了高复用和高扩展，实现了spring的启动，停止，刷新，事件推送，BeanFactory方法的默认实现getBean()
       以及虚拟机注册钩子函数进行回调。
+      AbstractApplicationContext是ApplicationContext的核心抽象模板类
+      最重要的refresh方法就是AbstractApplicationContext做模板实现，refresh方法是通过典型的模板方法设计模式实现的，但是
+      模板方法设计模式有一个最大的弊端，就是非常忌讳修改，特别是顺序不能改变，因为一旦改变已经实现好的子类就不会按照当初设计的目标
+      去执行了
+      spring的作者是怎么规避模板方法的弊端的？
+      一是对整个spring模型的理解以及对各个模块的分工职责的明确划分
+      二是在使用抽象模板的高复用性的同时支持重写及注册响应核心处理实体的回调函数来增加整个模板方法的扩展性
      */
 
     public static final String APPLICATION_EVENT_MULTICASTER_BEAN_NAME = "applicationEventMulticaster";
