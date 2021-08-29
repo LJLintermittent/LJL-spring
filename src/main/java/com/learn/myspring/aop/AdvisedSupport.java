@@ -15,6 +15,13 @@ import org.aopalliance.intercept.MethodInterceptor;
 // 这和业务开发中包装入参是一个道理
 public class AdvisedSupport {
 
+    /*
+      AdvisedSupport主要用于管理advisor
+      spring在创建代理的过程中依赖AdvisedSupport，即在执行代理时也需要这个属性，因为创建本身就是为执行做准备的
+      从设置的职责来看，无论是jdk代理还是cglib代理都依赖advisor和advice，advice是最小粒度，spring代理都是围绕他们创建的
+
+     */
+
     // ProxyConfig
     private boolean proxyTargetClass = false;
 
