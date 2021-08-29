@@ -26,6 +26,12 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
       AbstractAutowireCapableBeanFactory主要解决Bean之间的依赖问题和注入问题，其中实现了Bean的创建方法
       因为Bean并不是孤立存在的，很有可能存在Bean的相互依赖关系，所以只有在解决Bean的依赖的前提下，才能实现Bean的创建
       这也就是AbstractBeanFactory不能直接创建Bean方法的原因
+      bean可能是多种多样的，有些是代理Bean，有些是factoryBean，有些是自定义Bean等等，这些bean的加载，执行顺序，逻辑及要求都是不同的。
+      属性注入的原理：
+      属性注入的前提是当前对象已经完成了实例化，这样才能注入属性，因为注入属性的前提是有真正的targetObject
+      另外注意；在spring源码中，Bean的属性注入只包括两种方式，一种是按名称注入，一种是按类型注入
+
+
      */
 
 //    private InstantiationStrategy instantiationStrategy = new CglibSubclassingInstantiationStrategy();
@@ -164,6 +170,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         }
     }
 
+    //在Bean实例化过程中实现构造方法的注入
     protected Object createBeanInstance(BeanDefinition beanDefinition, String beanName, Object[] args) {
         Constructor constructorToUse = null;
         Class<?> beanClass = beanDefinition.getBeanClass();
@@ -211,6 +218,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         this.instantiationStrategy = instantiationStrategy;
     }
 
+    //spring为Bean的初始化提供了构造方法，init-method，@postconstruct，initializeBean四种方式
+    //从spring的createBean的时序上来看，构造方法是在实例化Bean时调用的，然后注入Bean所需的属性到已实例化的对象中，
+    //最后初始化Bena，调用Bean配置的初始化方法
     private Object initializeBean(String beanName, Object bean, BeanDefinition beanDefinition) {
 
         // invokeAwareMethods
