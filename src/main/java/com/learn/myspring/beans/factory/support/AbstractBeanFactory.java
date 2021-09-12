@@ -60,7 +60,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
     }
 
     protected <T> T doGetBean(final String name, final Object[] args) {
-        //从单例池中进行获取，
+        //从缓存中获取单例工厂中的objectFactory单例
         Object sharedInstance = getSingleton(name);
         if (sharedInstance != null) {
             // 如果是 FactoryBean，则需要调用 FactoryBean#getObject
