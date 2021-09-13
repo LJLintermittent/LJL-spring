@@ -91,6 +91,10 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 
     protected abstract BeanDefinition getBeanDefinition(String beanName) throws BeansException;
 
+    /**
+     * protected：当前类，同包类，子孙类可以访问，其他包不可以访问
+     * 什么都不写：当前类，同包类可以访问，子孙类 ，其他包不可以访问
+     */
     protected abstract Object createBean(String beanName, BeanDefinition beanDefinition, Object[] args) throws BeansException;
 
     @Override

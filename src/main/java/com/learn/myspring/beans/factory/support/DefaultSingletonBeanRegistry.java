@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @email 18066550996@163.com
  */
 @SuppressWarnings("all")
-// DefaultSingletonBeanRegistry提供单例对象的注册操作，
+// DefaultSingletonBeanRegistry提供单例对象的注册操作以及获取操作
 public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
 
     /**
@@ -54,6 +54,7 @@ public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
 
     private final Map<String, DisposableBean> disposableBeans = new LinkedHashMap<>();
 
+    // 从单例池中获取单例Bean
     @Override
     public Object getSingleton(String beanName) {
         //一级缓存去拿第一个Bean对象，Bean还没创建出来，singletonObject肯定为null
@@ -75,7 +76,8 @@ public class DefaultSingletonBeanRegistry implements SingletonBeanRegistry {
         return singletonObject;
     }
 
-    //循环依赖的后一个Bean创建成功后，加入一级缓存，删除二三级缓存，这样折回去创建第一个Bean的时候从一级缓存直接取出这个后依赖的Bean
+    // 循环依赖的后一个Bean创建成功后，加入一级缓存，删除二三级缓存，
+    // 这样折回去创建第一个Bean的时候从一级缓存直接取出这个后依赖的Bean
     public void registerSingleton(String beanName, Object singletonObject) {
         singletonObjects.put(beanName, singletonObject);
         earlySingletonObjects.remove(beanName);

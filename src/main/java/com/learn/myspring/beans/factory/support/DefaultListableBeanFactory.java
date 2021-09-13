@@ -67,6 +67,10 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
         return beanDefinitionMap.keySet().toArray(new String[0]);
     }
 
+    /*
+     这个getBeanDefinition方法，不仅在abstractBeanfactory中是一个抽象方法
+     还在BeanDefinitionRegistry接口中定义了这个方法
+     */
     @Override
     public BeanDefinition getBeanDefinition(String beanName) throws BeansException {
         BeanDefinition beanDefinition = beanDefinitionMap.get(beanName);

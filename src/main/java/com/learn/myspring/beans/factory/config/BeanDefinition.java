@@ -23,6 +23,8 @@ public class BeanDefinition {
 
     String SCOPE_PROTOTYPE = ConfigurableBeanFactory.SCOPE_PROTOTYPE;
 
+    //将object替换为Class，这样就可以把Bean的实例化操作放到容器中处理，而不是把Bean的实例化操作放在初始化调用阶段传递给
+    //BeanDefinition的构造函数
     private Class beanClass;
 
     private PropertyValues propertyValues;

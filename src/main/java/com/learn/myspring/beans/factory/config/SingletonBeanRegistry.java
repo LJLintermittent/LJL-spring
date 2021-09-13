@@ -11,9 +11,15 @@ package com.learn.myspring.beans.factory.config;
 @SuppressWarnings("all")
 public interface SingletonBeanRegistry {
 
-    //获取单例对象
+    /**
+     * 三级缓存的核心处理
+     * 这两个方法主要玩的就是三级缓存之间的变换
+     */
+
+    // 获取单例Bean
     Object getSingleton(String name);
 
+    // 注册单例Bean
     void registerSingleton(String beanName, Object singletonObject);
 
 }

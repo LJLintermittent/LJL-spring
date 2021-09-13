@@ -30,8 +30,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
       属性注入的原理：
       属性注入的前提是当前对象已经完成了实例化，这样才能注入属性，因为注入属性的前提是有真正的targetObject
       另外注意；在spring源码中，Bean的属性注入只包括两种方式，一种是按名称注入，一种是按类型注入
-
-
      */
 
 //    private InstantiationStrategy instantiationStrategy = new CglibSubclassingInstantiationStrategy();
