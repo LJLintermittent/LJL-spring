@@ -179,6 +179,8 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
                 break;
             }
         }
+        // get set方式注入实例化接口的实现类，那么使用的时候通过get调用就ok了，获取到了以后调用实例化方法
+        // 传入指定的构造器进行对象的创建
         return getInstantiationStrategy().instantiate(beanDefinition, beanName, constructorToUse, args);
     }
 

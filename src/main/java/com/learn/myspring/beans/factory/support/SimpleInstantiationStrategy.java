@@ -40,6 +40,7 @@ public class SimpleInstantiationStrategy implements InstantiationStrategy {
             if (null != ctor) {
                 return clazz.getDeclaredConstructor(ctor.getParameterTypes()).newInstance(args);
             } else {
+                // 空参构造的创建方式
                 return clazz.getDeclaredConstructor().newInstance();
             }
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
