@@ -19,7 +19,6 @@ import java.io.InputStream;
 //ClassPath:类路径资源读取器
 public class ClassPathResource implements Resource {
 
-
     /**
      * 这一部分的实现是用于通过 ClassLoader 读取 ClassPath 下的文件信息，
      * 具体的读取过程主要是：classLoader.getResourceAsStream(path)

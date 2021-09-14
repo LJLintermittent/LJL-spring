@@ -34,12 +34,12 @@ public class UrlResource implements Resource {
      */
     @Override
     public InputStream getInputStream() throws IOException {
-        URLConnection urlConnection = this.url.openConnection();
+        URLConnection connection = this.url.openConnection();
         try {
-            return urlConnection.getInputStream();
+            return connection.getInputStream();
         } catch (IOException exception) {
-            if (urlConnection instanceof HttpURLConnection) {
-                ((HttpURLConnection) urlConnection).disconnect();
+            if (connection instanceof HttpURLConnection) {
+                ((HttpURLConnection) connection).disconnect();
             }
             throw exception;
         }

@@ -170,3 +170,249 @@ ___
 ### 设计与实现资源加载器，从spring.xml中解析和注册Bean对象
 
 目前使用这个轮子框架，用户还必须手动的创建一个个BeanDefinition，然后使用beanfactory来注册BeanDefinition，再把属性进去，然后再调用beanfactory的getBean方法，这种冗余的代码操作是不可能让用户来写的，那么需要提供一种在配置文件中配置好所有的Bean，并且能解析出配置文件中的信息，然后交给IOC容器去自动的创建
+
+目前仿照spring的设计，可以有一个思路就是，实现一个能读取classpath（类路径），本地文件或者云文件（url的方式）中的文件信息的解析器，这个配置文件中会包含Bean对象的描述和属性信息，在读取完配置文件后，接下来需要对配置文件中对Bean的描述信息解析后进行注册，把Bean对象放到spring容器中
+
+在spring源码中，io部分其实是相对比较独立的一部分，对于任何一个框架来说，都可以把这些部分做一个完全解耦，也就是说这部分的内容可以直接拷贝出来独立使用，相当于是一个独立的资源加载模块，可拔插式的设计。
+
+为了能把Bean的定义，注册和初始化交给spring.xml配置化的处理，那么需要实现两大块内容：分别是资源加载器，xml资源处理类，实现过程主要是对接口Resource`、`ResourceLoader的实现，另外还需要一个接口BeanDefinitionReader来把资源做一个具体的使用，将配置信息注册到spring容器中去
+
+在Resource的资源加载器的实现中包括了ClassPath、系统文件、云配置文件，这三种方式与spring源码的实现做了一个看齐，最终在DefaultResourceLoader 中做一个具体的调用
+
+接口：BeanDefinitionReader、抽象类：AbstractBeanDefinitionReader、实现类：XmlBeanDefinitionReader，这三部分内容主要是合理清晰的处理了资源读取后的注册 Bean 容器操作。接口管定义，抽象类处理非接口功能外的注册Bean组件填充，最终实现类即可只关心具体的业务实现
+
+另外这部分根据github项目small-spring的实现，加上了很多spring中的架构设计
+
+比如ListableBeanFactory接口，是一个扩展Bean工厂的接口
+
+HierarchicalBeanFactory：在spring源码中它提供了可以获取父类BeanFactory 的方法，也是为了扩展beanfactory接口的内容，本项目中没有实现相关父工厂的逻辑，故此接口内容为空
+
+AutowireCapableBeanFactory：在spring源码中，这个接口定义了Bean对象的创建，注入等职能，并且提供了对Bean初始化前后进行扩展的方法，这也是两个最重要的方法，applyBeanPostProcessorsBeforeInitialization，applyBeanPostProcessorsAfterInitialization，分别是在Bean的初始化前和初始化后应用BeanPostProcessor
+
+ConfigurableBeanFactory，可获取 BeanPostProcessor、BeanClassLoader等的一个配置化接口
+
+ConfigurableListableBeanFactory，提供分析和修改Bean以及预先实例化的操作接口，不过目前只有一个 getBeanDefinition 方法
+
+回到当前进度
+
+目前的主要目的是设计资源加载模块
+
+首先定义资源加载接口，来获取输入流
+
+~~~java
+public interface Resource {
+
+    /**
+     * Spring的IO包主要用于处理资源加载流
+     * 定义好Resource接口，提供获取InputStream流的方法
+     * 接下来再分别实现三种不同的流文件操作：classPath、FileSystem、URL
+     * 分别是classPath，系统文件，云配置文件
+     */
+    InputStream getInputStream() throws IOException;
+}
+~~~
+
+然后让那三种方式的具体类来实现这个接口
+
+```java
+public class ClassPathResource implements Resource {
+    
+    /**
+     * 这一部分的实现是用于通过 ClassLoader 读取 ClassPath 下的文件信息，
+     * 具体的读取过程主要是：classLoader.getResourceAsStream(path)
+     */
+    private final String path;
+
+    private ClassLoader classLoader;
+
+    public ClassPathResource(String path) {
+        this(path, (ClassLoader) null);
+    }
+
+    public ClassPathResource(String path, ClassLoader classLoader) {
+        Assert.notNull(path, "Path must not be null");
+        this.path = path;
+        this.classLoader = (classLoader != null ? classLoader : ClassUtils.getDefaultClassLoader());
+    }
+
+    @Override
+    public InputStream getInputStream() throws IOException {
+        InputStream inputStream = classLoader.getResourceAsStream(path);
+        if (inputStream == null) {
+            throw new FileNotFoundException(this.path + "cannot be opened because it does not exist");
+        }
+        return inputStream;
+    }
+}
+```
+
+核心逻辑就是通过类加载器来加载类路径下的文件，然后返回一个输入流，用户在传类路径的时候肯定不会再自己传递一个类加载器，那么需要写一个classutils，spring源码中也有一个classutils，并且也有一个getDefaultClassLoader方法，获取当前线程的上下文加载器，也就是说创建线程的人可以通过setContextClassLoader()方法将适合的类加载器设置到线程中，那么代码里面就可以getContextClassLoader来获取到这个类加载器，如果不设置的话默认就是系统类加载器
+
+至于说FileSystemResource，它的获取输入流的方式就是直接new一个FileInputStream将文件路径传进去就ok了
+
+最后是云文件资源加载器
+
+~~~java
+//云配置文件读取器
+public class UrlResource implements Resource {
+
+    private final URL url;
+
+    public UrlResource(URL url) {
+        //Assert：hutool工具包中的断言检查，经常用于做变量检查
+        Assert.notNull(url, "URL must not be null");
+        this.url = url;
+    }
+
+    /**
+     * 通过 HTTP 的方式读取云服务的文件
+     * 可以把文件放在github上
+     */
+    @Override
+    public InputStream getInputStream() throws IOException {
+        URLConnection connection = this.url.openConnection();
+        try {
+            return connection.getInputStream();
+        } catch (IOException exception) {
+            if (connection instanceof HttpURLConnection) {
+                ((HttpURLConnection) connection).disconnect();
+            }
+            throw exception;
+        }
+    }
+}
+~~~
+
+至此三大加载器都实现了获取配置文件的输入流的方法，拿到了输入流以后，就可以进行解析处理了
+
+光有一个Reource接口还不够，还需要提供一个接口，可以按照资源加载方式的不同，来选择合适的加载器，那么就提供一个ResourceLoader 接口用来根据传入的参数来获取相应的加载器，那么提供一个getResource方法即可，由于是接口，那么来一个实现类DefaultResourceLoader，根据参数做一个判断，然后new出来相应的资源加载器实现类
+
+~~~java
+public class DefaultResourceLoader implements ResourceLoader {
+
+    /**
+     * 将三种不同类型的资源处理方式进行了包装，判断分别为classpath，url和file
+     * 这里不会让外部调用者知道过多的细节，而只关心具体调用的结果
+     */
+    @Override
+    public Resource getResource(String location) {
+        Assert.notNull(location, "Location must not be null");
+        if (location.startsWith(CLASSPATH_URL_PREFIX)) {
+            // substring()光传一个参数，表示从这个位置开始截取，beginIndex
+            // 这里面代码逻辑是使用类加载器来获取类路径下的输入流，不需要classpath前缀，注意截断
+            return new ClassPathResource(location.substring(CLASSPATH_URL_PREFIX.length()));
+        } else {
+            try {
+                URL url = new URL(location);
+                return new UrlResource(url);
+            } catch (MalformedURLException e) {
+                return new FileSystemResource(location);
+            }
+        }
+    }
+}
+~~~
+
+至此io包中的内容基本实现，然后需要将io包与Bean定义读取接口做一个整合，通过BeanDefinitionReader 接口定义一些方法
+
+~~~java
+//Bean定义读取接口
+public interface BeanDefinitionReader {
+
+    BeanDefinitionRegistry getRegistry();
+
+    ResourceLoader getResourceLoader();
+
+    void loadBeanDefinitions(Resource resource) throws BeansException;
+
+    void loadBeanDefinitions(Resource... resources) throws BeansException;
+
+    void loadBeanDefinitions(String location) throws BeansException;
+
+    void loadBeanDefinitions(String... locations) throws BeansException;
+}
+~~~
+
+BeanDefinitionReader有一个非常重要的实现类，XmlBeanDefinitionReader，当然这个实现类是通过继承AbstractBeanDefinitionReader来间接实现BeanDefinitionReader的
+
+所以这块就是拿到资源流以后去做真正解析处理的架构设计
+
+那么最终对资源的处理实现都是在XmlBeanDefinitionReader中loadBeanDefinitions方法，这个方法又调用doloadBeanDefinitions，这是spring框架一贯的作风哈
+
+具体逻辑就是loadBeanDefinitions传进来的是一个Resource，那么调用Resource的getInputStream获取到了流，然后调用doloadBeanDefinitions传入流，进行真正的解析处理
+
+那么剩下的就交给dom4j的工具类saxreader先读流，返回一个Document对象，利用Document获取顶层Element对象，然后根据名称进行获取解析就ok了
+
+~~~java
+ protected void doLoadBeanDefinitions(InputStream inputStream) throws ClassNotFoundException, DocumentException {
+        SAXReader reader = new SAXReader();
+        Document document = reader.read(inputStream);
+        Element root = document.getRootElement();
+
+        // 解析 context:component-scan 标签，扫描包中的类并提取相关信息，用于组装 BeanDefinition
+        Element componentScan = root.element("component-scan");
+        if (null != componentScan) {
+            String scanPath = componentScan.attributeValue("base-package");
+            if (StrUtil.isEmpty(scanPath)) {
+                throw new BeansException("The value of base-package attribute can not be empty or null");
+            }
+            scanPackage(scanPath);
+        }
+
+        List<Element> beanList = root.elements("bean");
+        for (Element bean : beanList) {
+
+            String id = bean.attributeValue("id");
+            String name = bean.attributeValue("name");
+            String className = bean.attributeValue("class");
+            String initMethod = bean.attributeValue("init-method");
+            String destroyMethodName = bean.attributeValue("destroy-method");
+            String beanScope = bean.attributeValue("scope");
+
+            // 获取 Class，方便获取类中的名称
+            Class<?> clazz = Class.forName(className);
+            // 优先级 id > name
+            String beanName = StrUtil.isNotEmpty(id) ? id : name;
+            if (StrUtil.isEmpty(beanName)) {
+                beanName = StrUtil.lowerFirst(clazz.getSimpleName());
+            }
+
+            // 定义Bean
+            BeanDefinition beanDefinition = new BeanDefinition(clazz);
+            beanDefinition.setInitMethodName(initMethod);
+            beanDefinition.setDestroyMethodName(destroyMethodName);
+
+            if (StrUtil.isNotEmpty(beanScope)) {
+                beanDefinition.setScope(beanScope);
+            }
+
+            List<Element> propertyList = bean.elements("property");
+            // 读取属性并填充
+            for (Element property : propertyList) {
+                // 解析标签：property
+                String attrName = property.attributeValue("name");
+                String attrValue = property.attributeValue("value");
+                String attrRef = property.attributeValue("ref");
+                // 获取属性值：引入对象、值对象
+                Object value = StrUtil.isNotEmpty(attrRef) ? new BeanReference(attrRef) : attrValue;
+                // 创建属性信息
+                PropertyValue propertyValue = new PropertyValue(attrName, value);
+                beanDefinition.getPropertyValues().addPropertyValue(propertyValue);
+            }
+            if (getRegistry().containsBeanDefinition(beanName)) {
+                throw new BeansException("Duplicate beanName[" + beanName + "] is not allowed");
+            }
+            // 注册 BeanDefinition
+            getRegistry().registerBeanDefinition(beanName, beanDefinition);
+        }
+    }
+~~~
+
+所有的信息解析完以后要注册到BeanDefinition中，那么就调用BeanDefinitionRegistry的registerBeanDefinition方法将这个封装了所有配置文件关于Bean信息的BeanDefinition put到BeanDefinitionMap中，key是BeanName，value就是这个封装好的BeanDefinition
+
+___
+
+### 实现应用上下文，自动识别，资源加载，扩展机制
+
+
+
