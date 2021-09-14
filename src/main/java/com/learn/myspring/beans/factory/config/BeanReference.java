@@ -12,6 +12,11 @@ package com.learn.myspring.beans.factory.config;
 //Bean的引用
 public class BeanReference {
 
+    /**
+     * BeanReference用于在填充属性的时候
+     * 只负责填充Bean类型的属性
+     */
+
     private final String beanName;
 
     public BeanReference(String beanName) {
