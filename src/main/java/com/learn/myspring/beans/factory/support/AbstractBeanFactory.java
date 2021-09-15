@@ -11,6 +11,7 @@ import com.learn.myspring.utils.StringValueResolver;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Description:
@@ -37,7 +38,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
     /**
      * BeanPostProcessors to apply in createBean
      */
-    private final List<BeanPostProcessor> beanPostProcessors = new ArrayList<BeanPostProcessor>();
+    private final List<BeanPostProcessor> beanPostProcessors = new CopyOnWriteArrayList<>();
 
     /**
      * String resolvers to apply e.g. to annotation attribute values

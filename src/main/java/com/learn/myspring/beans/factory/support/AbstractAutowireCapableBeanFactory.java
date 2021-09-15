@@ -220,7 +220,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
     //spring为Bean的初始化提供了构造方法，init-method，@postconstruct，initializeBean四种方式
     //从spring的createBean的时序上来看，构造方法是在实例化Bean时调用的，然后注入Bean所需的属性到已实例化的对象中，
-    //最后初始化Bena，调用Bean配置的初始化方法
+    //最后初始化Bean，调用Bean配置的初始化方法
     private Object initializeBean(String beanName, Object bean, BeanDefinition beanDefinition) {
 
         // invokeAwareMethods
@@ -273,6 +273,11 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         }
     }
 
+    /**
+     * BeanPostProcessor的职责就是在Bean的初始化之前和之后执行相应的扩展操作
+     * 所谓的扩展其实就是调用我们自己实现BeanPostProcessor接口的类的postProcessBeforeInitialization方法
+     * 由于我们对这个方法做了实现，我们就可以自由的对这个Bean的属性做一些操作
+     */
     @Override
     public Object applyBeanPostProcessorsBeforeInitialization(Object existingBean, String beanName) throws BeansException {
         Object result = existingBean;
@@ -284,6 +289,10 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         return result;
     }
 
+    /**
+     * 同上
+     * 在Bean的实例化方法之后调用，做相应的扩展
+     */
     @Override
     public Object applyBeanPostProcessorsAfterInitialization(Object existingBean, String beanName) throws BeansException {
         Object result = existingBean;

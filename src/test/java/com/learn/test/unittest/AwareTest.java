@@ -24,6 +24,7 @@ public class AwareTest {
         System.out.println("测试：" + result);
         // 新增加的感知接口对应的具体实现(BeanNameAware, BeanClassLoaderAware, ApplicationContextAware, BeanFactoryAware)，
         // 已经可以如期输出结果
+        System.out.println("BeanName：" + userService.getBeanFactory());
         System.out.println("ApplicationContextAware：" + userService.getApplicationContext());
         System.out.println("BeanFactoryAware：" + userService.getBeanFactory());
     }

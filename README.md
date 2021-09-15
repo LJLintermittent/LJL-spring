@@ -823,3 +823,232 @@ ___
 
 ### 定义标记类型Aware接口，实现感知容器对象
 
+接下要实现的内容是在spring框架中提供一种能感知容器操作的接口，如果谁实现了这样的一个接口，那么就可以获取接口入参中的各类能力，比如BeanNameAware接口就是为了让自身Bean能感受到自己的BeanName，这个BeanName其实就是在xml配置文件中的bean标签中设置的id属性值
+
+思路就是定义一种标记性接口Aware，这个标记接口不需要有任何方法，它只起到标记的作用，而具体的功能由继承此接口的其他功能性接口定义具体的方法，最终这个接口可以通过instanceof的方式进行判断和调用，其实观察spirng源码，所有的xxxAware接口中都只是定义了一个方法，那就是setxxxAware，所以Bean对象可以感知到设置进来的相应的值
+
+在本项目中最终继承Aware接口的接口总共有4个，分别是ApplicationContextAware，BeanClassLoaderAware，BeanNameAware，BeanFactoryAware，这些接口的继承都是为了继承一个标记，有了标记的存在更方便类的操作和具体判断实现。
+
+注意一点：
+
+在spring源码中对于向beanfactory中添加BeanPostProcessor，spring都整合在了refresh方法的prepareBeanFactory(beanFactory);方法中，在这个方法中会把整个beanfactory准备好，也就是会把ApplicationContextAwareProcessor这个实现了BeanPostProcessor的类加入到BeanPostProcessor集合中，这个集合是一个CopyOnWriteArrayList
+
+```java
+private final List<BeanPostProcessor> beanPostProcessors = new CopyOnWriteArrayList<>();
+```
+
+~~~java
+// spring源码
+protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+		// Tell the internal bean factory to use the context's class loader etc.
+		beanFactory.setBeanClassLoader(getClassLoader());
+		beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
+		beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
+
+		// Configure the bean factory with context callbacks.
+		beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+~~~
+
+~~~java
+// spring源码
+public void refresh() throws BeansException, IllegalStateException {
+		synchronized (this.startupShutdownMonitor) {
+			// Prepare this context for refreshing.
+			prepareRefresh();
+
+			// Tell the subclass to refresh the internal bean factory.
+			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+
+			// Prepare the bean factory for use in this context.
+			prepareBeanFactory(beanFactory);
+
+			try {
+				// Allows post-processing of the bean factory in context subclasses.
+				postProcessBeanFactory(beanFactory);
+
+				// Invoke factory processors registered as beans in the context.
+				invokeBeanFactoryPostProcessors(beanFactory);
+                。。。。。。省略
+~~~
+
+可以看到spring需要对这个beanfactory添加许多的东西，所以在refresh方法中获得到了beanfactory中后单独抽取了一个方法进行准备
+
+本项目中直接在refresh方法中进行添加处理
+
+~~~java
+ public void refresh() throws BeansException {
+        // 1. 创建 BeanFactory，并加载 BeanDefinition
+        refreshBeanFactory();
+
+        // 2. 获取 BeanFactory
+        ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+
+        // 3. 添加 ApplicationContextAwareProcessor，让继承自 ApplicationContextAware 的 Bean
+        // 对象都能感知所属的 ApplicationContext
+        beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+
+        // 4. 在 Bean 实例化之前，执行 BeanFactoryPostProcessor (Invoke factory processors registered as beans in the context.)
+        invokeBeanFactoryPostProcessors(beanFactory);
+
+        // 5. BeanPostProcessor 需要提前于其他 Bean 对象实例化之前执行注册操作
+        registerBeanPostProcessors(beanFactory);
+     。。。。省略
+~~~
+
+接下来步入正轨开始标记接口的实现
+
+很简单的定义四个接口去继承Aware接口，接下来有一个比较的特殊的是使用了一个包装处理器ApplicationContextAwareProcessor
+
+~~~java
+public class ApplicationContextAwareProcessor implements BeanPostProcessor {
+
+    /**
+     * 由于 ApplicationContext 的获取并不能直接在创建 Bean 时候就可以拿到，
+     * 所以需要在 refresh 操作时，把 ApplicationContext 写入到一个包装的 BeanPostProcessor 中去，
+     * 再由 AbstractAutowireCapableBeanFactory.applyBeanPostProcessorsBeforeInitialization 方法调用
+     */
+    private final ApplicationContext applicationContext;
+
+    public ApplicationContextAwareProcessor(ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
+    }
+
+    @Override
+    public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+        if (bean instanceof ApplicationContextAware) {
+            ((ApplicationContextAware) bean).setApplicationContext(applicationContext);
+        }
+        return bean;
+    }
+
+    @Override
+    public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+        return bean;
+    }
+}
+~~~
+
+由于ApplicationContext 的获取并不能直接在创建Bean的时候就能拿到，所以需要在refresh方法中，把ApplicationContext 写入到一个包装的BeanPostProcessor 中，因为放到了BeanPostProcessor 中，才可以对这个Bean进行一个扩展，然后AbstractAutowireCapableBeanFactory的applyBeanPostProcessorsBeforeInitialization 就会调用BeanPostProcessors中的BeanPostProcessor ，这玩意是一个CopyOnWriteArrayList
+
+包装好了以后需要在refresh方法中进行一个添加操作，上面已经写过了
+
+接下来就是如何感知刚才定义的接口的核心逻辑，感知到了以后做setXXX操作
+
+~~~java
+    private Object initializeBean(String beanName, Object bean, BeanDefinition beanDefinition) {
+
+        // invokeAwareMethods
+        if (bean instanceof Aware) {
+            if (bean instanceof BeanFactoryAware) {
+                ((BeanFactoryAware) bean).setBeanFactory(this);
+            }
+            if (bean instanceof BeanClassLoaderAware) {
+                ((BeanClassLoaderAware) bean).setBeanClassLoader(getBeanClassLoader());
+            }
+            if (bean instanceof BeanNameAware) {
+                ((BeanNameAware) bean).setBeanName(beanName);
+            }
+        }
+
+        // 1. 执行 BeanPostProcessor Before 处理
+        Object wrappedBean = applyBeanPostProcessorsBeforeInitialization(bean, beanName);
+
+        // 执行 Bean 对象的初始化方法
+        try {
+            invokeInitMethods(beanName, wrappedBean, beanDefinition);
+        } catch (Exception e) {
+            throw new BeansException("Invocation of init method of bean[" + beanName + "] failed", e);
+        }
+
+        // 2. 执行 BeanPostProcessor After 处理
+        wrappedBean = applyBeanPostProcessorsAfterInitialization(bean, beanName);
+        return wrappedBean;
+    }
+~~~
+
+而后面两个方法其实就是对BeanPostProcessors做一个遍历，然后调用接口的postProcessBeforeInitialization和postProcessAfterInitialization方法
+
+~~~java
+ /**
+     * BeanPostProcessor的职责就是在Bean的初始化之前和之后执行相应的扩展操作
+     * 所谓的扩展其实就是调用我们自己实现BeanPostProcessor接口的类的postProcessBeforeInitialization方法
+     * 由于我们对这个方法做了实现，我们就可以自由的对这个Bean的属性做一些操作
+     */
+    @Override
+    public Object applyBeanPostProcessorsBeforeInitialization(Object existingBean, String beanName) throws BeansException {
+        Object result = existingBean;
+        for (BeanPostProcessor processor : getBeanPostProcessors()) {
+            Object current = processor.postProcessBeforeInitialization(result, beanName);
+            if (null == current) return result;
+            result = current;
+        }
+        return result;
+    }
+
+    /**
+     * 同上
+     * 在Bean的实例化方法之后调用，做相应的扩展
+     */
+    @Override
+    public Object applyBeanPostProcessorsAfterInitialization(Object existingBean, String beanName) throws BeansException {
+        Object result = existingBean;
+        for (BeanPostProcessor processor : getBeanPostProcessors()) {
+            Object current = processor.postProcessAfterInitialization(result, beanName);
+            if (null == current) return result;
+            result = current;
+        }
+        return result;
+    }
+~~~
+
+通过简单的instanceof就可以通知到实现了此接口的类。另外前面在refresh中还向 BeanPostProcessor 中添加了 ApplicationContextAwareProcessor，此时在这个方法中也会被调用到具体的类实现，得到一个 ApplicationContex 属性，至于其他的感知接口，只要我们这个Bean对象它实现了那些接口，那么通过instanceof都能感知到，并且由于实现了相应的感知接口，那么就得实现那些接口中定义的set方法，所以在我们的Bean对象中会直接做一个设置。那么在initializeBean方法中感知到以后我只要多态的调用set方法，就会转到实现了这个接口的Bean对象，调用它自己的实现就ok了
+
+~~~java
+public class UserServiceForAware implements BeanNameAware, BeanClassLoaderAware, ApplicationContextAware, BeanFactoryAware {
+
+    private ApplicationContext applicationContext;
+
+    private BeanFactory beanFactory;
+
+    private String uId;
+
+    private String company;
+
+    private String location;
+
+    private UserDao userDao;
+
+    public String queryUserInfo() {
+        return userDao.queryUserName(uId) + "在" + location + "的" + company;
+    }
+
+    @Override
+    public void setBeanClassLoader(ClassLoader classLoader) {
+        System.out.println("ClassLoader:" + classLoader);
+    }
+
+    @Override
+    public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+        this.beanFactory = beanFactory;
+    }
+
+    @Override
+    public void setBeanName(String name) {
+        System.out.println("Bean Name is：" + name);
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
+    }
+    。。。。。省略
+~~~
+
+至此基本实现了Aware接口的感知功能，并做了4个继承接口来测试一下，扩展了spring的功能。
+
+那么现在springBean的生命周期已经比较完整：
+
+xml -> BeanDefinition -> BeanFactoryPostProcessors修改BeanDefinition 信息（BeanFactoryPostProcessor接口的作用是加载完BeanDefinition 信息后，实例化之前，对BeanDefinition 进行修改）-> Bean实例化 -> 在设置Bean属性值之前，允许允许 BeanPostProcessor 修改属性值 -> 给Bean填充属性 -> Bean初始化（initializeBean）（首先Aware感知，然后执行初始化之前的扩展，然后真正执行初始化方法，然后执行初始化之后的扩展方法）-> 使用 -> 执行Bean的销毁方法
+
+____
+
