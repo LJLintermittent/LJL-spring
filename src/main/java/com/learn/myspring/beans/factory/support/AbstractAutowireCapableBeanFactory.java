@@ -254,16 +254,21 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
     private void invokeInitMethods(String beanName, Object bean, BeanDefinition beanDefinition) throws Exception {
         // 1. 实现接口 InitializingBean
         if (bean instanceof InitializingBean) {
+            // 如果实现了这个接口，那么需要调用afterPropertiesSet();
             ((InitializingBean) bean).afterPropertiesSet();
         }
 
         // 2. 注解配置 init-method {判断是为了避免二次执行销毁}
+        // 如果没有用接口的方式，而是使用xml的方式，那么肯定通过xmlbeandereader读到了beanDefinition中
+        // 那么通过beanDefinition获取出来初始化方法的名字，使用反射来调用初始化方法
         String initMethodName = beanDefinition.getInitMethodName();
         if (StrUtil.isNotEmpty(initMethodName)) {
+            // 通过反射获取这个Bean的Class对象，然后获取指定的方法
             Method initMethod = beanDefinition.getBeanClass().getMethod(initMethodName);
             if (null == initMethod) {
                 throw new BeansException("Could not find an init method named '" + initMethodName + "' on bean with name '" + beanName + "'");
             }
+            // Method.invoke() 用来执行目标对象的指定方法
             initMethod.invoke(bean);
         }
     }

@@ -630,7 +630,196 @@ ConfigurableApplicationContext将refresh()方法定义好以后，可以预想�
 
 这就是核心逻辑，可以看到在initializeBean方法中，目前在执行Bean的初始化之前和之后都有方法，把它包围，至于说前置后置方法的实现逻辑，非常简单，拿到所有的BeanPostProcessor，循环调用它的postProcessBeforeInitialization以及postProcessAfterInitialization方法即可，这两个方法是用户自己创建一个类去实现BeanPostProcessor接口，然后实现这两个方法，就可以在Bean初始化前后对bean做扩展了
 
+类流程：（由顶级到用户使用到顺序）
+
+ApplicationContext -> ConfigurableApplicationContext -> AbstractApplicationContext -> AbstractRefreshableApplicationContext -> 
+
+AbstractXmlApplicationContext -> ClassPathXmlApplicationContext
+
 ___
 
 ### 向虚拟机注册钩子，实现Bean对象的初始化和销毁方法
+
+当我们的类创建Bean对象时，交给spring容器管理后，这个类对象就可以被赋予更多的使用能力，比如上一段已经给对象添加了修改注册的Bean定义但是还未实例化的属性信息的能力，以及对象初始化过程中的前置处理和后置处理，当然在设置属性之前还可以再次对属性进行修改，用的是BeanPostProcessor，这些额外的功能实现，可以让我们对现有工程中的对象做相应的扩展处理
+
+除此以外还希望可以在Bean的初始化过程中，执行一些操作，比如帮我们做一些数据的加载执行，web程序关闭时执行链接断开，内存销毁等操作，也就是xml文件中配置的init-method和destory-method，虽然上面这些操作都可以通过构造函数，静态方法或者手动调用的方式实现，但这样的处理方式始终不如把这些操作统统交给spring处理来的更加舒服。
+
+所以接下来要讨论的需求是：满足用户可以在xml配置文件中配置初始化和销毁的方法，也可以通过实现类的方式来处理，比如在spring源码中就为我们提供了两个接口InitializingBean, DisposableBean ，当然后面还应该有一种通过注解的方式来实现。
+
+在使用spring这种庞然大物的框架的时候，要谨记 框架对外暴露的接口的使用（自己实现）或者通过xml配置的方式，完成了一系列扩展操作，看上去spring很神秘，其实对于这种在Bean初始化过程中额外添加的操作，无非就是预先执行了一个定义好的接口方法或者反射调用类中xml配置好的方法，最终只需要按照接口的定义实现，spring容器在启动的时候就会调用而已
+
+设计思路：在 spring.xml 配置中添加 `init-method、destroy-method` 两个标签内容，在配置文件加载的过程中，把标签内容配置一并定义到 BeanDefinition 的属性当中，这样在 initializeBean 初始化操作的工程中，就可以通过反射的方式来调用配置在 BeanDefinition 中的方法信息了，另外如果是接口实现的方式，那么直接可以通过 Bean 对象调用对应接口定义的方法即可，`((InitializingBean) bean).afterPropertiesSet()`，两种方式达到的效果是一样的
+
+在本项目中一共实现了两种初始化和销毁方法，一种是xml配置，另一种是定义接口，所以这里既有 InitializingBean、DisposableBean 也有需要 XmlBeanDefinitionReader 加载 spring.xml 配置信息到 BeanDefinition 中
+
+另外接口 ConfigurableBeanFactory 定义了 destroySingletons 销毁方法，并由 AbstractBeanFactory 继承的父类 DefaultSingletonBeanRegistry 实现 ConfigurableBeanFactory 接口定义的 destroySingletons 方法
+
+这块比较绕，一般都是用的谁实现接口谁完成实现类，而不是把实现接口的操作又交给继承的父类处理，这块是spring做的一种隔离分层服务的设计方式
+
+另外需要向虚拟机注册钩子函数，保证在虚拟机关闭的时候，执行销毁操作
+
+Runtime.getRuntime().addShutdownHook(new Thread(() -> System.out.println("close！")))
+
+~~~java
+// 定义初始化方法的接口
+// InitializingBean、DisposableBean，两个接口方法还是比较常用的，
+// 在一些需要结合 Spring 实现的组件中，经常会使用这两个方法来做一些参数的初始化和销毁操作。
+// 比如接口暴漏、数据库数据读取、配置文件加载
+public interface InitializingBean {
+
+    /**
+     * Bean 处理了属性填充后调用
+     *
+     * @throws Exception
+     */
+    void afterPropertiesSet() throws Exception;
+
+}
+~~~
+
+```java
+// 定义销毁方法的接口
+// InitializingBean、DisposableBean，两个接口方法还是比较常用的，
+// 在一些需要结合 Spring 实现的组件中，经常会使用这两个方法来做一些参数的初始化和销毁操作。
+// 比如接口暴漏、数据库数据读取、配置文件加载
+public interface DisposableBean {
+
+    void destroy() throws Exception;
+
+}
+```
+
+有了这两个接口后一定要在BeanDefinition 中添加相应的属性，让Bean定义变得逐渐完整。源码中BeanDefinition 是接口，所以一定是相应的get和set方法的定义，如果不是为了扩展方便，图省事的话直接用类就ok了
+
+在BeanDefinition 中添加了这两个属性后，那么从spring.xml文件中解析出来的信息就需要添加进来，同时解析处理还是在XmlBeanDefinitionReader中，需要加上这两项内容的解析处理
+
+由于这个需求是在对Bean进行真正初始化的时候触发的，所以应该对应的是AbstractAutowireCapableBeanFactory 的createBean方法中的doCreateBean中的initializeBean中的invokeInitMethods方法，这个invokeInitMethods方法才是执行对象初始化的方法
+
+~~~java
+ private void invokeInitMethods(String beanName, Object bean, BeanDefinition beanDefinition) throws Exception {
+        // 1. 实现接口 InitializingBean
+        if (bean instanceof InitializingBean) {
+            // 如果实现了这个接口，那么需要调用afterPropertiesSet();
+            ((InitializingBean) bean).afterPropertiesSet();
+        }
+
+        // 2. 注解配置 init-method {判断是为了避免二次执行销毁}
+        // 如果没有用接口的方式，而是使用xml的方式，那么肯定通过xmlbeandereader读到了beanDefinition中
+        // 那么通过beanDefinition获取出来初始化方法的名字，使用反射来调用初始化方法
+        String initMethodName = beanDefinition.getInitMethodName();
+        if (StrUtil.isNotEmpty(initMethodName)) {
+            // 通过反射获取这个Bean的Class对象，然后获取指定的方法
+            Method initMethod = beanDefinition.getBeanClass().getMethod(initMethodName);
+            if (null == initMethod) {
+                throw new BeansException("Could not find an init method named '" + initMethodName + "' on bean with name '" + beanName + "'");
+            }
+            // Method.invoke() 用来执行目标对象的指定方法
+            initMethod.invoke(bean);
+        }
+    }
+~~~
+
+抽象类AbstractAutowireCapableBeanFactory 中的createBean方法是用来创建Bean对象的方法，在这个方法中之前已经通过BeanFactoryPostProcessor、BeanPostProcessor 来进行过扩展，当前是继续完善Bean对象的初始化方法的处理动作
+
+那么在初始化方法中，主要逻辑就是一个是执行实现了 InitializingBean 接口的操作，处理 afterPropertiesSet 方法，另一个是判断配置信息 init-method 是否存在，执行反射调用 initMethod.invoke(bean)。这两种方式都可以在 Bean 对象初始化过程中进行处理加载 Bean 对象中的初始化操作，让使用者可以额外新增加自己想要的动作
+
+至此初始化相关逻辑处理完毕，接下来是销毁方法
+
+这块主要就是整了一个适配器，因为销毁的方法有多种，本项目只写了两种，实现接口DisposableBean和配置文件destroy-method，而这两种销毁方式都是由AbstractApplicationContext 在注册虚拟机钩子后看虚拟机关闭前执行的操作动作，那么再销毁时不太希望看都得销毁哪些类型的方法，使用上希望有一个统一的接口，所以这里用了适配器模式，来做统一处理。对于初始化方法那边一样，我认为也可以用适配器类，只不过初始化的逻辑写在了大的方法里罢了
+
+~~~java
+public class DisposableBeanAdapter implements DisposableBean {
+
+    private final Object bean;
+
+    private final String beanName;
+
+    private String destroyMethodName;
+
+    public DisposableBeanAdapter(Object bean, String beanName, BeanDefinition beanDefinition) {
+        this.bean = bean;
+        this.beanName = beanName;
+        this.destroyMethodName = beanDefinition.getDestroyMethodName();
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        // 1. 实现接口 DisposableBean
+        if (bean instanceof DisposableBean) {
+            ((DisposableBean) bean).destroy();
+        }
+
+        // 2. 注解配置 destroy-method {判断是为了避免二次执行销毁}
+        if (StrUtil.isNotEmpty(destroyMethodName) && !(bean instanceof DisposableBean && "destroy".equals(this.destroyMethodName))) {
+            Method destroyMethod = bean.getClass().getMethod(destroyMethodName);
+            if (null == destroyMethod) {
+                throw new BeansException("Couldn't find a destroy method named '" + destroyMethodName + "' on bean with name '" + beanName + "'");
+            }
+            destroyMethod.invoke(bean);
+        }
+
+    }
+}
+~~~
+
+那么销毁的逻辑写好后需要在创建Bean的时候进行一个注册，也就是在创建Bean对象的时候，需要把销毁的方法保存起来，方便后续在执行销毁动作的时候使用
+
+~~~java
+            // 在设置 Bean 属性之前，允许 BeanPostProcessor 修改属性值
+            applyBeanPostProcessorsBeforeApplyingPropertyValues(beanName, bean, beanDefinition);
+            // 给 Bean 填充属性
+            applyPropertyValues(beanName, bean, beanDefinition);
+            // 执行 Bean 的初始化方法和 BeanPostProcessor 的前置和后置处理方法
+            bean = initializeBean(beanName, bean, beanDefinition);
+        } catch (Exception e) {
+            throw new BeansException("Instantiation of bean failed", e);
+        }
+
+        // 注册实现了 DisposableBean 接口的 Bean 对象
+        registerDisposableBeanIfNecessary(beanName, bean, beanDefinition);
+
+    //这里维护了一个linkedhashmap来存储有销毁方法的Bean
+    public void registerDisposableBean(String beanName, DisposableBean bean) {
+        disposableBeans.put(beanName, bean);
+    }
+~~~
+
+所以核心代码就是上面的内容，在初始化Bean完成以后，需要注册销毁方法
+
+那么这个销毁方法的具体方法信息，会被注册到 DefaultSingletonBeanRegistry 中新增加的 `Map<String, DisposableBean> disposableBeans` 属性中去，因为这个接口的方法最终可以被类 AbstractApplicationContext 的 close 方法通过 `getBeanFactory().destroySingletons()` 调用
+
+在注册销毁方法的时候，会根据是接口类型和配置类型统一交给 DisposableBeanAdapter 销毁适配器类来做统一处理。*实现了某个接口的类可以被 instanceof 判断或者强转后调用接口方法*
+
+在AbstractApplicationContext 中对ConfigurableApplicationContext接口定义的向虚拟机注册钩子方法做一个实现registerShutdownHook还有一个手动执行关闭的方法close
+
+~~~java
+  @Override
+    public void registerShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(this::close));
+    }
+
+    @Override
+    public void close() {
+        // 发布容器关闭事件
+        publishEvent(new ContextClosedEvent(this));
+
+        // 执行销毁单例bean的销毁方法
+        getBeanFactory().destroySingletons();
+    }
+~~~
+
+这套逻辑就是销毁方法的实现
+
+~~~java
+    // 1.初始化 BeanFactory
+    ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("classpath:spring.xml");
+    applicationContext.registerShutdownHook();      
+
+    // 2. 获取Bean对象调用方法
+    UserService userService = applicationContext.getBean("userService", UserService.class);
+~~~
+
+___
+
+### 定义标记类型Aware接口，实现感知容器对象
 
