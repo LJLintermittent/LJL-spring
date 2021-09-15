@@ -414,5 +414,223 @@ ___
 
 ### 实现应用上下文，自动识别，资源加载，扩展机制
 
+观察其他基于spring开发组件或者中间件的源码，一定会有继承或者实现了spring对外暴露的类或者接口，在接口的实现中获取了BeanFactory 以及Bean对象的获取等内容，并对这些内容做一些操作：比如修改Bean的信息，添加日志打印等，处理数据库路由对数据源的切换等
 
+在对容器中的Bean的实例化过程添加扩展机制的时候，还需要把目前关于spring.xml初始化和加载策略进行优化，因为不可能让用户手动的创建DefaultListableBeanFactory对象，然后在创建XmlBeanDefinitionReader调用loadBeanDefinitions这一套繁琐的流程。因为DefaultListableBeanFactory说到底还是提供给spring本身开发而服务的，不太可能提供给用户使用
+
+同时还需要考虑到扩展的问题，比如在一个Bean初始化的过程中，完成对Bean对象的扩展，那么如果不采用上下文的方式，就很难做到自动化处理，所以接下来需要把Bean对象扩展机制功能和对spring框架上下文的包装融合起来，对外提供完整的服务
+
+为了能满足于在Bean对象从注册到实例化的过程中执行用户自定义的操作，就需要在Bean的定义和初始化过程中插入接口，这个接口再有外部去实现自己需要的服务，并且始终结合spring框架上下文的处理能力
+
+满足于对Bean对象扩展的两个接口，其实也是spring框架中非常重量级的两个接口，BeanFactoryPostProcess，BeanPostProcessor，这两个接口也是使用spring框架额外开发自己功能的两个必备接口
+
+BeanFactoryPostProcessor，是由spring框架组件提供的容器扩展机制，允许在Bean对象注册后但尚未实例化前，对Bean的定义信息BeanDefinition执行修改操作
+
+BeanPostProcessor也是spring提供的扩展机制，不过BeanPostProcessor是在Bean对象实例化之后修改Bean对象，也可以替换Bean对象，这部分与AOP有着密切联系
+
+最终的重点是开发一个spring的上下文操作类，把相应的xml加载，注册，实例化以及新增的修改和扩展融合进去，让spring可以自动扫描到新增的服务，便于用户使用
+
+整体实现的起点是以继承了ListableBeanFactory 接口的ApplicationContext 接口开始，扩展出一系列应用上下文的抽象类，完成最终的ClassPathXmlApplicationContext类的实现，这个类就是最终要交给用户使用的类，同时在实现应用上下文的过程中，通过定义接口`BeanFactoryPostProcessor`、`BeanPostProcessor` 两个接口，把关于对Bean的扩展机制串联进去
+
+~~~java
+// 允许自定义修改 BeanDefinition 属性信息
+// 这个接口提供了允许Bean对象在注册以后，也就是BeanDefinition加载完成以后，
+// 实例化之前，对Bean的定义信息BeanDefinition执行修改操作
+public interface BeanFactoryPostProcessor {
+
+    /**
+     * 在所有的 BeanDefinition 加载完成后，实例化 Bean 对象之前，提供修改 BeanDefinition 属性的机制
+     */
+    void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException;
+}
+~~~
+
+这个接口定义与spring源码一模一样，主要是在BeanDefinition加载完成，也就是注册完成，放到了BeanDefinitionMap中以后，对象实例化之前，对BeanDefinition进行一个修改操作
+
+具体玩的话就是创建一个实现类实现这个接口：
+
+~~~java
+public class MyBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
+
+    @Override
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+
+        BeanDefinition beanDefinition = beanFactory.getBeanDefinition("userService");
+        PropertyValues propertyValues = beanDefinition.getPropertyValues();
+
+        propertyValues.addPropertyValue(new PropertyValue("company", "阿里巴巴"));
+    }
+}
+~~~
+
+通过添加PropertyValue来对BeanDefinition做一个扩展
+
+注意这个参数的传递是ConfigurableListableBeanFactory，这个接口继承了三大接口，自己提供了一个
+
+void addBeanPostProcessor(BeanPostProcessor beanPostProcessor);方法，可以把用户实现的BeanFactoryPostProcessor传进来做一个扩展
+
+~~~java
+// 对Bean对象扩展的两个接口，也是在使用Spring框架额外新增开发自己组件需求的两个必备接口
+// BeanPostProcessor是在Bean对象实例化之后修改Bean对象，也可以替换Bean对象，这部分与后面要实现的AOP功能有密切联系
+// Spring源码的描述：提供了修改新实例化Bean对象的扩展点
+// BeanFactoryPostProcess、BeanPostProcessor这两个接口非常重要，如果以后要做一些关于 Spring 中间件的开发时，
+// 如果需要用到 Bean 对象的获取以及修改一些属性信息，那么就可以使用这两个接口了。
+// 同时 BeanPostProcessor 也是实现 AOP 切面技术的关键所在
+public interface BeanPostProcessor {
+
+    /**
+     * 在 Bean 对象执行初始化方法之前，执行此方法
+     */
+    Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException;
+
+    /**
+     * 在 Bean 对象执行初始化方法之后，执行此方法
+     */
+    Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException;
+}
+~~~
+
+BeanPostProcessor接口与spring源码定义也一致，这个接口提供的两个方法分别解决的是Bean实例化以后初始化之前的Bean的修改操作，以及初始化之后的修改
+
+接下来是上下文顶级接口ApplicationContext ，这个接口将spring的整个上下文环境做了一个集成，是一个复杂的集成体，继承了环境接口，资源加载接口，消息发布接口等
+
+```java
+// 这个接口的顶级接口是BeanFactory，也就是说他拥有BeanFactory的方法，比如各种重载的getBean()
+// 这个接口满足于自动识别，资源加载，容器事件，监听器等功能，同时例如一些国际化支持，单例Bean自动初始化等
+public interface ApplicationContext extends ListableBeanFactory, HierarchicalBeanFactory, ResourceLoader, ApplicationEventPublisher {
+
+    /*
+      ApplicationContext是整个容器的基本功能定义接口，继承的顶级接口是BeanFactory，说明容器也是工厂的多态实现
+      运用了代理的设计方式，它的实现类相当于持有一个BeanFactory实例，这个实例替它执行BeanFactory接口定义的功能
+      虽然spring在ApplicationContext中也声明了BeanFactory接口中的功能,但是Beanfactory实例只是ApplicationContext中的一个属性
+      由这个属性来帮助ApplicationContext对外提供beanfactory定义的功能实现
+      ApplicationContext是围绕着spring的整体来设计的，从类型上看它虽然是Beanfactoy的实现类，但比beanfactory的功能更加强大，可以
+      理解为ApplicationContext接口扩展了Beanfactory接口
+      ApplicationContext是一个复杂的集成体，集成了环境接口，beanfactory接口，消息发布接口，配置源信息解析接口
+     */
+}
+```
+
+注意，现在描述的是IOC模块，而它的顶级接口是BeanFactory，说明他是在IOC容器的基础上开始进行扩展了
+
+ApplicationContext接口虽然有很多的实现类，但都不是直接实现它这个接口的，而是ConfigurableApplicationContext这个接口做一个方法的定义，那就是refresh方法，这也是整个spring上下文最重要的方法
+
+~~~java
+// refresh方法非常核心，需要在应用上下文中完成刷新容器的操作
+public interface ConfigurableApplicationContext extends ApplicationContext {
+
+    /**
+     * 刷新容器
+     */
+    void refresh() throws BeansException;
+
+    void registerShutdownHook();
+
+    void close();
+
+}
+~~~
+
+ConfigurableApplicationContext将refresh()方法定义好以后，可以预想到这个方法一定是一个非常大的方法，毫不犹豫直接模板方法设计模式，那么就得整个抽象类，AbstractApplicationContext安排上，将refresh方法的实现逻辑与顺序定义好以后，需要其他职责类实现的直接打成protected abstract，交给继承类去实现即可，一些不重要的方法直接在抽象类中做一个实现
+
+~~~java
+  @Override
+    public void refresh() throws BeansException {
+        // 1. 创建 BeanFactory，并加载 BeanDefinition
+        refreshBeanFactory();
+
+        // 2. 获取 BeanFactory
+        ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+
+        // 3. 添加 ApplicationContextAwareProcessor，让继承自 ApplicationContextAware 的 Bean 对象都能感知所属的 ApplicationContext
+        beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+
+        // 4. 在 Bean 实例化之前，执行 BeanFactoryPostProcessor (Invoke factory processors registered as beans in the context.)
+        invokeBeanFactoryPostProcessors(beanFactory);
+
+        // 5. BeanPostProcessor 需要提前于其他 Bean 对象实例化之前执行注册操作
+        registerBeanPostProcessors(beanFactory);
+
+        // 6. 初始化事件发布者
+        initApplicationEventMulticaster();
+
+        // 7. 注册事件监听器
+        registerListeners();
+
+        // 8. 提前实例化单例Bean对象，涉及循环依赖的处理
+        beanFactory.preInstantiateSingletons();
+
+        // 9. 发布容器刷新完成事件
+        finishRefresh();
+    }
+~~~
+
+这是框架最终的refresh方法，目前阶段还有很多功能没涉及到。
+
+框架这里AbstractApplicationContext 继承了DefaultResourceLoader是为了处理spring.xml配置资源的加载
+
+之后是在refresh定义实现过程：
+目前需要的是创建BeanFactory，并加载BeanDefinition
+
+然后获取BeanFactory
+
+然后在执行Bean的实例化之前执行BeanFactoryPostProcessor中的方法
+
+最后BeanPostProcessor 需要提前于其他Bean对象实例化之前执行注册操作
+
+最后提前实例化单例Bean对象
+
+另外把定义出来的抽象方法，refreshBeanFactory()、getBeanFactory() 由后面的继承此抽象类的其他抽象类实现。
+
+上面说了refreshBeanFactory这个抽象方法需要交给一个类去实现，这个在spring源码中就是AbstractRefreshableApplicationContext 。它本身还是一个抽象类，那么一定还有抽象方法需要子类去实现，从这个类的职责可以看出，它的职责是创建Bean工厂并且加载资源，那么加载资源的方法很明显就是交给了另一个抽象类AbstractXmlApplicationContext去实现，从名字也能看出来，每个抽象类专门负责自己的业务，xml开头的负责加载并解析xml文件相关功能。
+
+~~~java
+    @Override
+    protected void refreshBeanFactory() throws BeansException {
+        DefaultListableBeanFactory beanFactory = createBeanFactory();
+        loadBeanDefinitions(beanFactory);
+        this.beanFactory = beanFactory;
+    }
+~~~
+
+至于说createBeanFactory方法，实现就是new一个DefaultListableBeanFactory，没什么说的，因为这个BeanFactory是一个集大成的beanfactory，是一个非常的成熟的类，用户都可以直接使用了。。
+
+最终才到了给用户直接使用的那个上下文，也就是ClassPathXmlApplicationContext，思考一下这个类平时怎么用的，是不是直接传一个string类型的地址，然后整个ioc容器就把所有的活（资源配置加载，bean的实例化，初始化等方法执行完了）
+
+~~~java
+    /**
+     * 从 XML 中加载 BeanDefinition，并刷新上下文
+     */
+    public ClassPathXmlApplicationContext(String[] configLocations) throws BeansException {
+        this.configLocations = configLocations;
+        refresh();
+    }
+~~~
+
+这是这个类的核心方法，其实也就是调用它的爷爷接口中定义的refresh方法，也就是模板抽象类中的那个非常长的方法
+
+至此基本完成了对前面已经实现的ioc容器的功能的整合，也就是都放到了上下文中了，用户现在只需要两行代码就能获取到一个Bean对象。
+
+现在该处理Bean的扩展接口的实现，由于是在Bean的创建时完成前置和后置方法，所以肯定是在AbstractAutowireCapableBeanFactory 中处理。这块的关键方法是 bean = initializeBean(beanName, bean, beanDefinition);这个是执行Bean的初始化方法以及BeanPostProcessor 的前置方法和后置处理方法
+
+~~~java
+        // 1. 执行 BeanPostProcessor Before 处理
+        Object wrappedBean = applyBeanPostProcessorsBeforeInitialization(bean, beanName);
+
+        // 执行 Bean 对象的初始化方法
+        try {
+            invokeInitMethods(beanName, wrappedBean, beanDefinition);
+        } catch (Exception e) {
+            throw new BeansException("Invocation of init method of bean[" + beanName + "] failed", e);
+        }
+
+        // 2. 执行 BeanPostProcessor After 处理
+        wrappedBean = applyBeanPostProcessorsAfterInitialization(bean, beanName);
+~~~
+
+这就是核心逻辑，可以看到在initializeBean方法中，目前在执行Bean的初始化之前和之后都有方法，把它包围，至于说前置后置方法的实现逻辑，非常简单，拿到所有的BeanPostProcessor，循环调用它的postProcessBeforeInitialization以及postProcessAfterInitialization方法即可，这两个方法是用户自己创建一个类去实现BeanPostProcessor接口，然后实现这两个方法，就可以在Bean初始化前后对bean做扩展了
+
+___
+
+### 向虚拟机注册钩子，实现Bean对象的初始化和销毁方法
 
