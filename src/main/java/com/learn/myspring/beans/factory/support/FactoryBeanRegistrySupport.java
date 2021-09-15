@@ -16,11 +16,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @SuppressWarnings("all")
 /*
-    FactoryBeanRegistrySupport 类主要处理的就是关于 FactoryBean 此类对象的注册操作，
-    之所以放到这样一个单独的类里，就是希望做到不同领域模块下只负责各自需要完成的功能，避免因为扩展导致类膨胀到难以维护
+FactoryBeanRegistrySupport 类主要处理的就是关于 FactoryBean 类对象的注册操作，
+之所以放到这样一个单独的类里，就是希望做到不同领域模块下只负责各自需要完成的功能，避免因为扩展导致单个类膨胀到难以维护
  */
 public abstract class FactoryBeanRegistrySupport extends DefaultSingletonBeanRegistry {
-
 
     /**
      * Cache of singleton objects created by FactoryBeans: FactoryBean name --> object

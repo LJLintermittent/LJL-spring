@@ -123,10 +123,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
     /**
      * 在设置 Bean 属性之前，允许 BeanPostProcessor 修改属性值
-     *
-     * @param beanName
-     * @param bean
-     * @param beanDefinition
      */
     protected void applyBeanPostProcessorsBeforeApplyingPropertyValues(String beanName, Object bean, BeanDefinition beanDefinition) {
         for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {

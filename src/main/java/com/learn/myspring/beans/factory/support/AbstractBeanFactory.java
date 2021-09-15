@@ -76,10 +76,12 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
     }
 
     private Object getObjectForBeanInstance(Object beanInstance, String beanName) {
+        //从单例池中获取的对象，如果不为空，直接到这个方法了，然后再次判断是不是工厂bean，不是工厂bean的话那么getBean到此结束
         if (!(beanInstance instanceof FactoryBean)) {
             return beanInstance;
         }
 
+        //从缓存中获取工厂Bean
         Object object = getCachedObjectForFactoryBean(beanName);
 
         if (object == null) {

@@ -10,8 +10,6 @@ package com.learn.myspring.beans.factory;
  */
 public interface FactoryBean<T> {
 
-
-
     /**
      * 获取对象
      */

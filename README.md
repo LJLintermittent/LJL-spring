@@ -1052,3 +1052,151 @@ xml -> BeanDefinition -> BeanFactoryPostProcessors修改BeanDefinition 信息（
 
 ____
 
+### 关于Bean的作用域以及FactoryBean的实现
+
+前言：在使用spring整合mybatis框架的时候，它的核心作用是可以满足用户不需要实现Dao接口类，就可以通过xml或者注解的方式完成对数据库的CRUD操作，那么在实现这样的ORM框架中，把一个数据库操作的对象交给Spring管理就用到了自定义创建Bean对象的逻辑。
+
+因为我们在使用 Spring、MyBatis 框架的时候都可以知道，并没有手动的去创建任何操作数据库的 Bean 对象，有的仅仅是一个接口定义，而这个接口定义竟然可以被注入到其他需要使用 Dao 的属性中去了，那么这一过程最核心待解决的问题，就是需要完成把复杂且以代理方式动态变化的对象，注册到 Spring 容器中。
+
+关于提供一个能让使用者定义复杂的Bean对象的功能，功能点非常不错，意义也很大，因为这样做了以后spring的生态才可以成立，别的框架都可以在此标准上完成自己服务的接入
+
+在整个spring框架的开发过程中其实已经提供了各种扩展功能的插入点，所以每扩展一项新的功能就是在合适的位置提供一个插入点接口，然后来实现相应的逻辑即可，像这里的目标实现就是对外提供一个可以二次从FactoryBean 的getObject方法中获取对象的功能，这样所有实现此接口的类，就可以扩充自己对象的功能了
+
+最著名的案例比如mybatis就是实现了一个MapperFactoryBean类，在*getObject* 中提供*SqlSession* 对执行CRUD方法的操作
+
+另外当前还需要实现的一个内容是单例对象和原型对象，单例还是原型主要实现的区别是单例对象创建完成以后会放到内存中，也就是单例池中，而原型不会放入，所以每次获取都会重新创建对象
+
+AbstractAutowireCapableBeanFactory的createBean方法执行对象创建，属性填充，依赖加载，前置后置处理，初始化方法等操作，现在除了这些操作以后，还需要在最后判断是否是单例对象，来决定加不加到内存中。
+
+另外还需要判断整个对象是不是一个FactoryBean对象，如果是这样的对象，就需要继续执行获取FactoryBean 具体对象的getObject方法，整个 getBean 过程中都会新增一个单例类型的判断factory.isSingleton()，用于决定是否使用内存存放对象信息。
+
+实现过程：
+
+首先加入了单例Bean与原型Bean的逻辑，那么在BeanDefinition 中就得加上相应的属性，从而可以从xml文件中解析得来的数据做一个设置
+
+其次在AbstractAutowireCapableBeanFactory 的createBean方法中（doCreateBean）中添加判断单例的逻辑，来决定个是否加入内存
+
+~~~java
+	  if (beanDefinition.isSingleton()) {
+            // 获取代理对象
+            exposedObject = getSingleton(beanName);
+            registerSingleton(beanName, exposedObject);
+        }
+        return exposedObject;
+~~~
+
+另外在注册销毁方法时，如果是非单例Bean，那么不需要注册
+
+~~~java
+    protected void registerDisposableBeanIfNecessary(String beanName, Object bean, BeanDefinition beanDefinition) {
+        // 非 Singleton 类型的 Bean 不执行销毁方法
+        if (!beanDefinition.isSingleton()) return;
+
+        if (bean instanceof DisposableBean || StrUtil.isNotEmpty(beanDefinition.getDestroyMethodName())) {
+            registerDisposableBean(beanName, new DisposableBeanAdapter(bean, beanName, beanDefinition));
+        }
+    }
+~~~
+
+至此单例bean与原型bean的逻辑实现完毕
+
+接下来处理FactoryBean 业务：
+
+首先按照spring源码的定义，来创建一个FactoryBean接口
+
+~~~java
+public interface FactoryBean<T> {
+
+    /**
+     * 获取对象
+     */
+    T getObject() throws Exception;
+    /**
+     * 获取类型
+     */
+    Class<?> getObjectType();
+    /**
+     * 判断是否为单例Bean
+     */
+    boolean isSingleton();
+}
+~~~
+
+然后实现一个FactoryBean的注册服务，FactoryBeanRegistrySupport 类主要处理的就是关于FactoryBean 类对象的注册操作，之所以抽取成单独的类，就是希望不同领域模块下只负责各自需要完成的功能，避免因为扩展导致类膨胀，同时也加上了缓存操作factoryBeanObjectCache，如果是单例类型的FactoryBean，那么需要放到缓存中。doGetObjectFromFactoryBean 是具体的获取 FactoryBean#getObject() 方法，因为既有缓存的处理也有对象的获取，所以额外提供了 getObjectFromFactoryBean 进行逻辑包装
+
+~~~java
+public abstract class FactoryBeanRegistrySupport extends DefaultSingletonBeanRegistry {
+
+    /**
+     * Cache of singleton objects created by FactoryBeans: FactoryBean name --> object
+     */
+    private final Map<String, Object> factoryBeanObjectCache = new ConcurrentHashMap<String, Object>();
+
+    protected Object getCachedObjectForFactoryBean(String beanName) {
+        Object object = this.factoryBeanObjectCache.get(beanName);
+        return (object != NULL_OBJECT ? object : null);
+    }
+
+    protected Object getObjectFromFactoryBean(FactoryBean factory, String beanName) {
+        if (factory.isSingleton()) {
+            Object object = this.factoryBeanObjectCache.get(beanName);
+            if (object == null) {
+                object = doGetObjectFromFactoryBean(factory, beanName);
+                this.factoryBeanObjectCache.put(beanName, (object != null ? object : NULL_OBJECT));
+            }
+            return (object != NULL_OBJECT ? object : null);
+        } else {
+            return doGetObjectFromFactoryBean(factory, beanName);
+        }
+    }
+
+    private Object doGetObjectFromFactoryBean(final FactoryBean factory, final String beanName){
+        try {
+            return factory.getObject();
+        } catch (Exception e) {
+            throw new BeansException("FactoryBean threw exception on object[" + beanName + "] creation", e);
+        }
+    }
+}
+~~~
+
+接下来需要在获取对象的时候扩展创建对象的逻辑
+
+~~~java
+    protected <T> T doGetBean(final String name, final Object[] args) {
+        //从缓存中获取单例工厂中的objectFactory单例
+        Object sharedInstance = getSingleton(name);
+        if (sharedInstance != null) {
+            // 如果是 FactoryBean，则需要调用 FactoryBean#getObject
+            return (T) getObjectForBeanInstance(sharedInstance, name);
+        }
+
+        BeanDefinition beanDefinition = getBeanDefinition(name);
+        //刚开始创建的时候，单例池中为空，一二三级缓存全部获取一遍都获取不到，上面判空后来到这里
+        //进行Bean的创建
+        Object bean = createBean(name, beanDefinition, args);
+        return (T) getObjectForBeanInstance(bean, name);
+    }
+~~~
+
+~~~java
+    private Object getObjectForBeanInstance(Object beanInstance, String beanName) {
+        //从单例池中获取的对象，如果不为空，直接到这个方法了，然后再次判断是不是工厂bean，不是工厂bean的话那么getBean到此结束
+        if (!(beanInstance instanceof FactoryBean)) {
+            return beanInstance;
+        }
+
+        //从缓存中获取工厂Bean
+        Object object = getCachedObjectForFactoryBean(beanName);
+
+        if (object == null) {
+            FactoryBean<?> factoryBean = (FactoryBean<?>) beanInstance;
+            object = getObjectFromFactoryBean(factoryBean, beanName);
+        }
+
+        return object;
+    }
+~~~
+
+因为需要扩展FactoryBean 对象的能力，所以在一条链路上截出一段来处理额外的服务，然后再把链条接上
+
