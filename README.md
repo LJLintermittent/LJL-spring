@@ -2,8 +2,6 @@
 
 # IOC模块
 
-
-
 ### 最简易的IOC容器
 
 spring的ioc容器包含并管理应用对象的配置和生命周期，在这个意义上它是一种用于承载对象的容器，你可以配置你的每一个Bean对象是如何被创建的，这些Bean可以创建一个单独的实例或者每次都需要生成一个新的实例，以及关注他们是如何相互关联构建和使用的
@@ -1488,3 +1486,318 @@ public interface ApplicationEventPublisher {
 ~~~
 
 也就是向虚拟注册一个钩子，在虚拟机关闭的时候发布一个容器关闭事件，然后对单例Bean进行一个销毁
+
+___
+
+# AOP模块
+
+### 基于JDK动态代理和CGlib动态代理，实现AOP的核心功能
+
+AOP意味着面向切面编程，通过预编译的方式和运行期间动态代理实现程序功能的统一维护，其实AOP也是OOP的延续，使用aop可以对业务逻辑的各个部分进行隔离，从而使各模块间的业务逻辑耦合度降低，提高代码的复用度，也能提高开发效率
+
+关于aop的核心技术实现主要是动态代理的使用，比如给一个接口的实现类，使用jdk动态代理的方式替换掉这个实现类，使用代理类来处理所需要的逻辑
+
+思路有了以后还要考虑的问题是：怎么给方法做代理，而不是代理类，另外怎么去代理所有符合某些规则的类中的方法，如果可以替换掉所有类的符合规则的方法，那么就可以做一个方法粒度的拦截，给所有被代理的方法添加上一些自定义处理，比如打印日志，记录耗时，监控异常等
+
+整理一下aop解决的主要问题：
+
+1.如何给符合规则的方法做代理
+
+2.做完代理方法的案例后，把类的职责拆分出来
+
+这两个功能的实现，都是以切面的思想进行设计和开发。
+
+那么在使用spring的aop的时候，只处理一些需要被拦截的方法，在拦截方法后，执行你对方法的扩展操作，所以就需要先实现一个可以代理方法的proxy，其实代理方法主要是使用到方法拦截器类处理方法的调用MethodInterceptor#invoke，而不是直接使用动态代理中的invoke方法的入参method 进行method.invoke(targetObj, args)，这是需要注意的一点差别
+
+除了上面的核心功能（方法代理）外，还需要使用到 org.aspectj.weaver.tools.PointcutParser处理拦截表达式，"execution(* com.duanxu.lijiale-spring.test.bean.IUserService.*(..))"，有了方法代理和方法拦截外，就可以设计出一个aop雏形
+
+~~~wiki
+AspectJExpressionPointcut的核心功能主要依赖于aspectj 组件并处理Pointcut、ClassFilter,、MethodMatcher 接口实现，专门用来处理类和方法的匹配过滤操作
+AopProxy是代理的抽象对象，它的主要实现基于 JDK 的代理和 Cglib 代理。在前面的策略模式实例化bean功能中，也用到了cglib
+~~~
+
+~~~java
+@Test
+public void test_proxy_method() {
+    // 目标对象(可以替换成任何的目标对象)
+    Object targetObj = new UserService();
+    // AOP 代理
+    IUserService proxy = (IUserService) Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), targetObj.getClass().getInterfaces(), new InvocationHandler() {
+        // 方法匹配器
+        MethodMatcher methodMatcher = new AspectJExpressionPointcut("execution(* cn.bugstack.springframework.test.bean.IUserService.*(..))");
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            if (methodMatcher.matches(method, targetObj.getClass())) {
+                // 方法拦截器
+                MethodInterceptor methodInterceptor = invocation -> {
+                    long start = System.currentTimeMillis();
+                    try {
+                        return invocation.proceed();
+                    } finally {
+                        System.out.println("监控 - Begin By AOP");
+                        System.out.println("方法名称：" + invocation.getMethod().getName());
+                        System.out.println("方法耗时：" + (System.currentTimeMillis() - start) + "ms");
+                        System.out.println("监控 - End\r\n");
+                    }
+                };
+                // 反射调用
+                return methodInterceptor.invoke(new ReflectiveMethodInvocation(targetObj, method, args));
+            }
+            return method.invoke(targetObj, args);
+        }
+    });
+    String result = proxy.queryUserInfo();
+    System.out.println("测试结果：" + result);
+}
+~~~
+
+上面的案例中把UserService 当成目标对象，对类中的所有方法进行拦截添加监控信息打印处理
+
+从案例中可以看到有代理的实现 Proxy.newProxyInstance，有方法的匹配 MethodMatcher，有反射的调用 invoke(Object proxy, Method method, Object[] args)，也用用户自己拦截方法后的操作
+
+这就是AOP应该做到事，spring就是把这种功能整合起来罢了，而不是每次使用的时候都需要自己写这些冗余的代码
+
+接下来是具体的实现：
+
+~~~java
+// 切入点接口，定义用于获取 ClassFilter、MethodMatcher 的两个类，这两个接口获取的都是切点表达式提供的内容
+public interface Pointcut {
+
+    ClassFilter getClassFilter();
+
+    MethodMatcher getMethodMatcher();
+
+}
+~~~
+
+与spring源码中的定义基本一致
+
+~~~java
+public interface ClassFilter {
+
+    boolean matches(Class<?> clazz);
+}
+
+~~~
+
+这个接口是用来做类匹配或者接口匹配的，叫过滤也行，与源码定义保持一致
+
+~~~java
+public interface MethodMatcher {
+
+    boolean matches(Method method, Class<?> targetClass);
+    
+}
+~~~
+
+方法匹配，找到表达式范围内匹配出来的目标类中的目标方法
+
+接下来需要实现切点表达式：
+
+~~~java
+// 实现切点表达式类
+// 切点表达式实现了Pointcut、ClassFilter、MethodMatcher三个接口定义方法，
+// 同时这个类主要是对 aspectj 包提供的表达式校验方法的使用
+@SuppressWarnings("all")
+public class AspectJExpressionPointcut implements Pointcut, ClassFilter, MethodMatcher {
+
+    private static final Set<PointcutPrimitive> SUPPORTED_PRIMITIVES = new HashSet<PointcutPrimitive>();
+
+    static {
+        SUPPORTED_PRIMITIVES.add(PointcutPrimitive.EXECUTION);
+    }
+
+    private final PointcutExpression pointcutExpression;
+
+    public AspectJExpressionPointcut(String expression) {
+        PointcutParser pointcutParser = PointcutParser.
+                getPointcutParserSupportingSpecifiedPrimitivesAndUsingSpecifiedClassLoaderForResolution
+                        (SUPPORTED_PRIMITIVES, this.getClass().getClassLoader());
+        pointcutExpression = pointcutParser.parsePointcutExpression(expression);
+    }
+
+    @Override
+    public boolean matches(Class<?> clazz) {
+        return pointcutExpression.couldMatchJoinPointsInType(clazz);
+    }
+
+    @Override
+    public boolean matches(Method method, Class<?> targetClass) {
+        return pointcutExpression.matchesMethodExecution(method).alwaysMatches();
+    }
+
+    @Override
+    public ClassFilter getClassFilter() {
+        return this;
+    }
+
+    @Override
+    public MethodMatcher getMethodMatcher() {
+        return this;
+    }
+
+}
+~~~
+
+对于实现的两个过滤匹配接口的match方法的实现，都使用aspectj包中提供的表达式校验方法
+
+现在可以对这个表达式验证类做单独的测试：
+
+~~~java
+@Test
+public void test_aop() throws NoSuchMethodException {
+    AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut("execution(* com.duanxun.lijiale-spring.test.bean.UserService.*(..))");
+    Class<UserService> clazz = UserService.class;
+    Method method = clazz.getDeclaredMethod("queryUserInfo");   
+
+    System.out.println(pointcut.matches(clazz));// true
+    System.out.println(pointcut.matches(method, clazz));// true    
+    
+}
+~~~
+
+至此就可以使用aspectj的切点表达式来描述我们需要拦截哪些类中的哪些方法
+
+接下来需要对切面进行一个包装通知：
+
+~~~java
+// 包装切面通知信息
+// AdvisedSupport，主要是用于把代理、拦截、匹配的各项属性包装到一个类中，方便在 Proxy 实现类进行使用
+// 这和业务开发中包装入参是一个道理
+public class AdvisedSupport {
+
+    /*
+      AdvisedSupport主要用于管理advisor
+      spring在创建代理的过程中依赖AdvisedSupport，即在执行代理时也需要这个属性，因为创建本身就是为执行做准备的
+      从设置的职责来看，无论是jdk代理还是cglib代理都依赖advisor和advice，advice是最小粒度，spring代理都是围绕他们创建的
+     */
+
+    // ProxyConfig
+    private boolean proxyTargetClass = false;
+
+    // 被代理的目标对象
+    private TargetSource targetSource;
+
+    // 方法拦截器
+    private MethodInterceptor methodInterceptor;
+
+    // 方法匹配器(检查目标方法是否符合通知条件)
+    private MethodMatcher methodMatcher;
+    
+    省略get/set方法
+~~~
+
+这个类用于把跟aop有关的那些属性，比如代理，拦截，匹配的各项属性包装到一个类中，方便在proxy类中进行使用。
+
+TargetSource：是一个目标对象，在目标对象类中提供object入参属性，以及获取目标类TargetClass 信息
+
+MethodInterceptor：是一个具体拦截方法的实现类，由用户自己实现MethodInterceptor#invoke方法，做具体的处理
+
+MethodMatcher：是一个方法匹配操作，这个对象由AspectJExpressionPointcut 提供服务
+
+接下来将做代理的抽象实现：
+
+~~~java
+public interface AopProxy {
+
+    Object getProxy();
+
+}
+~~~
+
+定义一个标准接口，用于获取代理类，因为具体的实现可以有JDK动态代理，也可以是CGlib动态代理，所以定义接口会更加方便管理
+
+JDK动态代理：
+
+~~~java
+public class JdkDynamicAopProxy implements AopProxy, InvocationHandler {
+
+    private final AdvisedSupport advised;
+
+    public JdkDynamicAopProxy(AdvisedSupport advised) {
+        this.advised = advised;
+    }
+
+    @Override
+    public Object getProxy() {
+        return Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
+                advised.getTargetSource().getTargetClass(), this);
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if (advised.getMethodMatcher().matches(method, advised.getTargetSource().getTarget().getClass())) {
+            MethodInterceptor methodInterceptor = advised.getMethodInterceptor();
+            return methodInterceptor
+                    .invoke(new ReflectiveMethodInvocation(advised.getTargetSource().getTarget(), method, args));
+        }
+        return method.invoke(advised.getTargetSource().getTarget(), args);
+    }
+
+}
+~~~
+
+invoke方法相当于嵌套代理，先拿到匹配的方法后，使用用户自己提供的方法拦截实现，做反射调用，methodInterceptor.invoke
+
+这里还有一个 ReflectiveMethodInvocation，其他它就是一个入参的包装信息，提供了入参对象：目标对象、方法、入参
+
+CGlib动态代理：
+
+~~~java
+public class Cglib2AopProxy implements AopProxy {
+
+    private final AdvisedSupport advised;
+
+    public Cglib2AopProxy(AdvisedSupport advised) {
+        this.advised = advised;
+    }
+
+    @Override
+    public Object getProxy() {
+        Enhancer enhancer = new Enhancer();
+        enhancer.setSuperclass(advised.getTargetSource().getTarget().getClass());
+        enhancer.setInterfaces(advised.getTargetSource().getTargetClass());
+        enhancer.setCallback(new DynamicAdvisedInterceptor(advised));
+        return enhancer.create();
+    }
+
+    private static class DynamicAdvisedInterceptor implements MethodInterceptor {
+
+        private final AdvisedSupport advised;
+
+        public DynamicAdvisedInterceptor(AdvisedSupport advised) {
+            this.advised = advised;
+        }
+
+        @Override
+        public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+            CglibMethodInvocation methodInvocation = new CglibMethodInvocation
+                    (advised.getTargetSource().getTarget(), method, objects, methodProxy);
+            if (advised.getMethodMatcher().matches(method, advised.getTargetSource().getTarget().getClass())) {
+                return advised.getMethodInterceptor().invoke(methodInvocation);
+            }
+            return methodInvocation.proceed();
+        }
+    }
+
+    private static class CglibMethodInvocation extends ReflectiveMethodInvocation {
+
+        private final MethodProxy methodProxy;
+
+        public CglibMethodInvocation(Object target, Method method, Object[] arguments, MethodProxy methodProxy) {
+            super(target, method, arguments);
+            this.methodProxy = methodProxy;
+        }
+
+        @Override
+        public Object proceed() throws Throwable {
+            return this.methodProxy.invoke(this.target, this.arguments);
+        }
+
+    }
+}
+~~~
+
+基于cglib使用enhancer代理的类可以在运行期间为接口使用ASM字节码增强技术处理对象的代理对象生成，因此被代理类不需要实现任何接口
+
+关于扩展进去的用户拦截方法，主要是在 Enhancer#setCallback 中处理，用户自己的新增的拦截处理。这里可以看到 DynamicAdvisedInterceptor#intercept 匹配方法后做了相应的反射操作
