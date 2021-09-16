@@ -49,6 +49,8 @@ public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
             Properties properties = new Properties();
             properties.load(resource.getInputStream());
 
+            // 由于这会BeanDefinition已经加载完毕，所以可以获取到所有的BeanDefinition
+            // 然后在实例化之前，对BeanDefinition中的属性，也就是对象的属性填充 进行修改和扩展
             String[] beanDefinitionNames = beanFactory.getBeanDefinitionNames();
             for (String beanName : beanDefinitionNames) {
                 BeanDefinition beanDefinition = beanFactory.getBeanDefinition(beanName);
@@ -58,6 +60,7 @@ public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
                     Object value = propertyValue.getValue();
                     if (!(value instanceof String)) continue;
                     value = resolvePlaceholder((String) value, properties);
+                    //上一步解析出内容以后，现在添加到BeanDefinition的属性填充中
                     propertyValues.addPropertyValue(new PropertyValue(propertyValue.getName(), value));
                 }
             }
@@ -71,6 +74,9 @@ public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
         }
     }
 
+    /**
+     * 将${}替换掉，只保留里面的字符串内容
+     */
     private String resolvePlaceholder(String value, Properties properties) {
         String strVal = value;
         StringBuilder buffer = new StringBuilder(strVal);

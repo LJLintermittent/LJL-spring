@@ -2091,5 +2091,113 @@ public class UserServiceBeforeAdvice implements MethodBeforeAdvice {
 
 ____
 
+# 自定义注解模块
+
+
+
 ### 通过注解配置和包自动扫描的方式Bean对象的注册
+
+目前ioc与aop的核心功能都已经实现，只不过不论是用什么都还是在xml文件中一个一个配置，但是目前使用spring肯定会结合各种注解来减少xml配置，做到更简化的使用
+
+这其中就包括：包的扫描注册，注解配置的使用，占位符属性填充等，所以现在的目标就是在目前的核心逻辑上填充一些自动化的功能。
+
+首先思考：为了简化bean的配置，让整个bean对象的注册都是自动扫描的，那么需要的基本步骤是：扫描路径入口，xml解析扫描信息，给需要扫描的bean对象加上自定义注解，扫描Class对象摘取bean注册的基本信息，组装注册信息，注册成Bean对象，那么在这些元素的支撑下，就可以实现出通过自定义注解和配置扫描路径的方式，自动完成对Bean的注册。
+
+除此之外还有一个比较好玩的功能，比如可以通过`${token}` 给 Bean 对象注入进去属性信息，那么这个操作需要用到 BeanFactoryPostProcessor，因为它可以处理 在所有的**BeanDefinition** 加载完成以后，实例化bean对象之前，提供修改**BeanDefinition** 的属性的机制。也就是@value注解的功能
+
+结合bean的生命周期，包扫描只不过是扫描特定注解的类，提取类的相关信息组装成**BeanDefinition** 注册到容器中
+
+在XmlBeanDefinitionReader中解析`<context:component-scan />`标签，扫描类组装BeanDefinition然后注册到容器中的操作在ClassPathBeanDefinitionScanner#doScan中实现
+
+~~~java
+public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
+
+    /**
+     * Default placeholder prefix: {@value}
+     */
+    public static final String DEFAULT_PLACEHOLDER_PREFIX = "${";
+
+    /**
+     * Default placeholder suffix: {@value}
+     */
+    public static final String DEFAULT_PLACEHOLDER_SUFFIX = "}";
+
+    private String location;
+
+    @Override
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+        try {
+            // 加载属性文件
+            DefaultResourceLoader resourceLoader = new DefaultResourceLoader();
+            Resource resource = resourceLoader.getResource(location);
+
+            // 占位符替换属性值
+            Properties properties = new Properties();
+            properties.load(resource.getInputStream());
+
+            // 由于这会BeanDefinition已经加载完毕，所以可以获取到所有的BeanDefinition
+            // 然后在实例化之前，对BeanDefinition中的属性，也就是对象的属性填充 进行修改和扩展
+            String[] beanDefinitionNames = beanFactory.getBeanDefinitionNames();
+            for (String beanName : beanDefinitionNames) {
+                BeanDefinition beanDefinition = beanFactory.getBeanDefinition(beanName);
+
+                PropertyValues propertyValues = beanDefinition.getPropertyValues();
+                for (PropertyValue propertyValue : propertyValues.getPropertyValues()) {
+                    Object value = propertyValue.getValue();
+                    if (!(value instanceof String)) continue;
+                    value = resolvePlaceholder((String) value, properties);
+                    //上一步解析出内容以后，现在添加到BeanDefinition的属性填充中
+                    propertyValues.addPropertyValue(new PropertyValue(propertyValue.getName(), value));
+                }
+            }
+
+            // 向容器中添加字符串解析器，供解析@Value注解使用
+            StringValueResolver valueResolver = new PlaceholderResolvingStringValueResolver(properties);
+            beanFactory.addEmbeddedValueResolver(valueResolver);
+
+        } catch (IOException e) {
+            throw new BeansException("Could not load properties", e);
+        }
+    }
+
+    /**
+     * 将${}替换掉，只保留里面的字符串内容
+     */
+    private String resolvePlaceholder(String value, Properties properties) {
+        String strVal = value;
+        StringBuilder buffer = new StringBuilder(strVal);
+        int startIdx = strVal.indexOf(DEFAULT_PLACEHOLDER_PREFIX);
+        int stopIdx = strVal.indexOf(DEFAULT_PLACEHOLDER_SUFFIX);
+        if (startIdx != -1 && stopIdx != -1 && startIdx < stopIdx) {
+            String propKey = strVal.substring(startIdx + 2, stopIdx);
+            String propVal = properties.getProperty(propKey);
+            buffer.replace(startIdx, stopIdx + 1, propVal);
+        }
+        return buffer.toString();
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
+    private class PlaceholderResolvingStringValueResolver implements StringValueResolver {
+
+        private final Properties properties;
+
+        public PlaceholderResolvingStringValueResolver(Properties properties) {
+            this.properties = properties;
+        }
+
+        @Override
+        public String resolveStringValue(String strVal) {
+            return PropertyPlaceholderConfigurer.this.resolvePlaceholder(strVal, properties);
+        }
+
+    }
+}
+~~~
+
+依赖于 BeanFactoryPostProcessor 在 Bean 生命周期的属性，可以在 Bean 对象实例化之前，改变属性信息。所以这里通过实现 BeanFactoryPostProcessor 接口，完成对配置文件的加载以及摘取占位符中的在属性文件里的配置
+
+这样就可以把从配置文件中提取到的配置信息放置到属性配置中了，`buffer.replace(startIdx, stopIdx + 1, propVal); propertyValues.addPropertyValue`
 
