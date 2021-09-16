@@ -161,10 +161,12 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader i
 
     @Override
     public void close() {
+
         // 发布容器关闭事件
         publishEvent(new ContextClosedEvent(this));
 
         // 执行销毁单例bean的销毁方法
         getBeanFactory().destroySingletons();
+
     }
 }

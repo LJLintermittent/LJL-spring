@@ -22,8 +22,8 @@ public class CustomEventListener implements ApplicationListener<CustomEvent> {
 
     @Override
     public void onApplicationEvent(CustomEvent event) {
-        System.out.println("收到：" + event.getSource() + "消息，当前时间为；" +
-                FORMAT_THREAD_LOCAL.get().format(new Date()));
+        System.out.println("收到：" + event.getSource() + "发来的消息，当前时间为；" +
+                FORMAT_THREAD_LOCAL.get().format(System.currentTimeMillis()));
         System.out.println("消息是：" + event.getId() + ":" + event.getMessage());
     }
 }

@@ -10,9 +10,10 @@ import com.learn.myspring.context.event.ApplicationContextEvent;
  * @author 李佳乐
  * @email 18066550996@163.com
  */
-/*
-    创建一个自定义事件，在事件类的构造函数中可以添加自己的想要的入参信息。
-    这个事件类最终会被完成的拿到监听里，所以你添加的属性都会被获得到
+
+/**
+ * 创建一个自定义事件，在事件类的构造函数中可以添加自己的想要的入参信息。
+ * 这个事件类最终会被完成的拿到监听里，所以你添加的属性都会被获得到
  */
 public class CustomEvent extends ApplicationContextEvent {
 
