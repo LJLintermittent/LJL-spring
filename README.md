@@ -1200,3 +1200,14 @@ public abstract class FactoryBeanRegistrySupport extends DefaultSingletonBeanReg
 
 因为需要扩展FactoryBean 对象的能力，所以在一条链路上截出一段来处理额外的服务，然后再把链条接上
 
+FactoryBean 补充：
+
+~~~wiki
+一般情况下，spring通过反射机制利用Bean标签中的class属性来通过反射获取Class对象，然后进行实例化，这是simple实例化策略，在某些情况下，实例化Bean过程比较复杂，如果按照传统方式，则需要在bean中配置大量信息，spring提供了一种编码方式来创建复杂对象，那就是FactoryBean接口，用户可以实现这个接口来定制的实例化Bean的逻辑。
+以Bean结尾，表示它还是一个普通的Bean对象，只不过他是实现了FactoryBean接口的Bean，FactoryBean接口是一个泛型接口，getObject方法返回的就是泛型中填入的类型，那么根据BeanName获取的Bean实际上是获取FactoryBean的getObject()返回的对象。注意这里说的BeanName其实就是标签中填入的id属性
+
+FactoryBean是一个接口，当在IOC容器中注册的Bean实现了FactoryBean后，通过getBean(String BeanName)获取到的Bean对象并不是FactoryBean的实现类对象，而是这个实现类中的getObject()方法返回的对象。要想获取FactoryBean的实现类，就要getBean(&BeanName)，在BeanName之前加上&
+
+一般的玩法是可用通过这个getobject来做动态代理，返回一个代理对象，做一些扩展操作
+~~~
+
