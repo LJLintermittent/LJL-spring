@@ -1801,3 +1801,36 @@ public class Cglib2AopProxy implements AopProxy {
 基于cglib使用enhancer代理的类可以在运行期间为接口使用ASM字节码增强技术处理对象的代理对象生成，因此被代理类不需要实现任何接口
 
 关于扩展进去的用户拦截方法，主要是在 Enhancer#setCallback 中处理，用户自己的新增的拦截处理。这里可以看到 DynamicAdvisedInterceptor#intercept 匹配方法后做了相应的反射操作
+
+~~~java
+@Test
+public void test_dynamic() {
+    // 目标对象
+    IUserService userService = new UserService();     
+
+    // 组装代理信息
+    AdvisedSupport advisedSupport = new AdvisedSupport();
+    advisedSupport.setTargetSource(new TargetSource(userService));
+    advisedSupport.setMethodInterceptor(new UserServiceInterceptor());
+    advisedSupport.setMethodMatcher(new AspectJExpressionPointcut("execution(*com.duanxu.lijiale-spring.test.bean.IUserService.*(..))"));
+    
+    // 代理对象(JdkDynamicAopProxy)
+    IUserService proxy_jdk = (IUserService) new JdkDynamicAopProxy(advisedSupport).getProxy();
+    // 测试调用
+    System.out.println("测试结果：" + proxy_jdk.queryUserInfo());
+    
+    // 代理对象(Cglib2AopProxy)
+    IUserService proxy_cglib = (IUserService) new Cglib2AopProxy(advisedSupport).getProxy();
+    // 测试调用
+    System.out.println("测试结果：" + proxy_cglib.register("花花"));
+}
+~~~
+
+这就是基本模拟使用了aop的代码，在JdkDynamicAopProxy中，通过jdk动态代理创建代理对象，然后调用invoke方法，在invoke方法中，如果满足切点表达式，那么调用methodInterceptor.invoke方法，如果不满足切点表达式匹配，那么就普通的调用jdk动态代理的方法invoke方法正常执行目标方法就行了
+
+cglib也一样如果匹配失败就正常使用cglib的代理类调用方式methodProxy.invoke，匹配成功了使用自己的拦截器
+
+___
+
+
+
