@@ -1152,6 +1152,7 @@ public abstract class FactoryBeanRegistrySupport extends DefaultSingletonBeanReg
 
     private Object doGetObjectFromFactoryBean(final FactoryBean factory, final String beanName){
         try {
+            //最终相当于你调用getBean方法返回了一个factory.getObject();getObject()这里面就可以做文章了，比如动态代理
             return factory.getObject();
         } catch (Exception e) {
             throw new BeansException("FactoryBean threw exception on object[" + beanName + "] creation", e);
@@ -1210,4 +1211,8 @@ FactoryBean是一个接口，当在IOC容器中注册的Bean实现了FactoryBean
 
 一般的玩法是可用通过这个getobject来做动态代理，返回一个代理对象，做一些扩展操作
 ~~~
+
+____
+
+### 基于观察者模式，实现容器事件和事件监听器
 
