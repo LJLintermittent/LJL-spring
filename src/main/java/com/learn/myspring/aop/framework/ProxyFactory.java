@@ -13,10 +13,6 @@ import com.learn.myspring.aop.AdvisedSupport;
 @SuppressWarnings("all")
 public class ProxyFactory {
 
-    /*
-      
-     */
-
     private AdvisedSupport advisedSupport;
 
     public ProxyFactory(AdvisedSupport advisedSupport) {

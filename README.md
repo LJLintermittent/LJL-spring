@@ -1804,7 +1804,7 @@ public class Cglib2AopProxy implements AopProxy {
 
 ~~~java
 @Test
-public void test_dynamic() {
+public void test_AOP() {
     // 目标对象
     IUserService userService = new UserService();     
 
@@ -1832,5 +1832,264 @@ cglib也一样如果匹配失败就正常使用cglib的代理类调用方式meth
 
 ___
 
+### 把AOP融入到Bean的生命周期
 
+在前面通过基于JDK动态代理和CGlib动态代理，处理方法匹配和方法拦截，对匹配的对象进行自定义的处理操作，并把这样的技术核心内容拆解到spring中，用于实现AOP部分，通过拆分基本可以明确各个类的职责，包括代理目标的对象属性，拦截器属性，方法匹配属性等，以及两种不同的代理操作
+
+再有了一个AOP的核心功能后，我们可以通过上面大量的编码来验证切面功能对方法的拦截，但是不太可能让用户去使用这种方式去单独的使用aop，而应该与spring结合起来，最终完成aop功能
+
+目前需要解决的问题是怎么借助BeanPostProcessor 把动态代理融入到Bean的生命周期，以及如何组装各项切点，拦截，前置的功能和适配对应的代理器
+
+为了可以让对象创建过程中，能把xml配置的代理对象也就是切面的一些类对象实例化，就需要用到BeanPostProcessor提供的方法，因为这个类中的方法可以分别作用于Bean对象执行初始化前和执行初始化后来修改Bean对象的扩展信息。
+
+但因为创建的是代理对象而不是之前流程里的普通对象，所以需要前置于其他对象的创建，所以在实际开发过程中，需要在AbstractAutowireCapableBeanFactory#createBean 优先完成Bean对象的判断，是否需要代理，有则直接返回代理对象，在Spring的源码中会有 createBean 和 doCreateBean 的方法拆分
+
+这里还包括要解决方法拦截器的具体功能，提供一些 BeforeAdvice、AfterAdvice 的实现，让用户可以更简化的使用切面功能。除此之外还包括需要包装切面表达式以及拦截方法的整合，以及提供不同类型的代理方式的代理工厂，来包装我们的切面服务
+
+创建一个接口InstantiationAwareBeanPostProcessor继承BeanPostProcessor，对BeanPostProcessor接口来一个扩展
+
+然后创建一个自动代理创建的类DefaultAdvisorAutoProxyCreator，这个类就是用于处理整个AOP代理融入到Bean生命周期的核心类，DefaultAdvisorAutoProxyCreator 会依赖于拦截器，代理工厂和pointcut与Advisor的包装服务。
+
+spring的aop把Advice 细化为了BeforeAdvice、AfterAdvice、AfterReturningAdvice、ThrowsAdvice等，本项目只使用到了BeforeAdvice
+
+接下来是具体的实现：
+
+~~~java
+public interface BeforeAdvice extends Advice {
+
+}
+~~~
+
+创建一个空接口来继承aopalliance包中提供的advice接口，aop包中的Advice接口也是一个空接口
+
+~~~java
+public interface MethodBeforeAdvice extends BeforeAdvice{
+
+    void before(Method method, Object[] args, Object target) throws Throwable;
+
+}
+~~~
+
+在spring框架中，Advice都是通过方法拦截器MethodInterceptor实现的。
+
+定义Advisor 访问者：
+
+~~~java
+public interface Advisor {
+
+    Advice getAdvice();
+
+}
+~~~
+
+这个Advice是aopalliance包提供的
+
+~~~java
+public interface PointcutAdvisor extends Advisor{
+
+    Pointcut getPointcut();
+
+}
+~~~
+
+Advisor可以获取Advice，并且还是PointcutAdvisor的父类，所以Advisor承担了pointcut和advice的组合，pointcut用于获取joinpoint，而advice决定于joinpoint执行什么操作
+
+~~~java
+// AspectJExpressionPointcutAdvisor 实现了 PointcutAdvisor 接口，把切面 pointcut、
+// 拦截方法 advice 和具体的拦截表达式包装在一起。
+// 这样就可以在xml的配置中定义一个pointcutAdvisor切面拦截器了
+public class AspectJExpressionPointcutAdvisor implements PointcutAdvisor {
+
+    // 切面
+    private AspectJExpressionPointcut pointcut;
+
+    // 具体的拦截方法
+    private Advice advice;
+
+    // 表达式
+    private String expression;
+
+    public void setExpression(String expression){
+        this.expression = expression;
+    }
+
+    @Override
+    public Pointcut getPointcut() {
+        if (null == pointcut) {
+            pointcut = new AspectJExpressionPointcut(expression);
+        }
+        return pointcut;
+    }
+
+    @Override
+    public Advice getAdvice() {
+        return advice;
+    }
+
+    public void setAdvice(Advice advice){
+        this.advice = advice;
+    }
+
+}
+~~~
+
+相当于使用一个类来将切面（pointcut），拦截方法（advice ）和具体的拦截表达式（AspectJExpressionPointcut）包装在一起，这样就可以在xml中定义一个pointcutAdvisor 切面拦截器来完成所有的包装
+
+~~~java
+public class MethodBeforeAdviceInterceptor implements MethodInterceptor {
+
+    private MethodBeforeAdvice advice;
+
+    public MethodBeforeAdviceInterceptor() {
+    }
+
+    public MethodBeforeAdviceInterceptor(MethodBeforeAdvice advice) {
+        this.advice = advice;
+    }
+
+    @Override
+    public Object invoke(MethodInvocation methodInvocation) throws Throwable {
+        this.advice.before(methodInvocation.getMethod(),
+                methodInvocation.getArguments(), methodInvocation.getThis());
+        return methodInvocation.proceed();
+    }
+
+    public MethodBeforeAdvice getAdvice() {
+        return advice;
+    }
+
+    public void setAdvice(MethodBeforeAdvice advice) {
+        this.advice = advice;
+    }
+}
+~~~
+
+MethodBeforeAdviceInterceptor 实现了 MethodInterceptor 接口，在 invoke 方法中调用 advice 中的 before 方法，传入对应的参数信息而这个 advice.before 则是用于自己实现 MethodBeforeAdvice 接口后做的相应处理。
+
+所以我们现在可以自己写一个实现类来实现MethodBeforeAdvice接口，重写before方法， 在before方法中定义自己的业务逻辑，那么当调用invoke方法的时候，会先调用我们实现的before方法，然后才执行真正的业务方法
+
+~~~java
+public class ProxyFactory {
+
+    private AdvisedSupport advisedSupport;
+
+    public ProxyFactory(AdvisedSupport advisedSupport) {
+        this.advisedSupport = advisedSupport;
+    }
+
+    public Object getProxy() {
+        return createAopProxy().getProxy();
+    }
+
+    private AopProxy createAopProxy() {
+        if (advisedSupport.isProxyTargetClass()) {
+            return new Cglib2AopProxy(advisedSupport);
+        }
+        return new JdkDynamicAopProxy(advisedSupport);
+    }
+
+}
+~~~
+
+代理工厂，主要解决关于jdk和cglib两种代理的选择问题，有了代理工厂就可以按照不同的创建需求进行控制
+
+接下来需要将这些内容融入到Bean的生命周期
+
+~~~java
+public class DefaultAdvisorAutoProxyCreator implements InstantiationAwareBeanPostProcessor, BeanFactoryAware {
+
+    private DefaultListableBeanFactory beanFactory;
+
+    @Override
+    public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+        this.beanFactory = (DefaultListableBeanFactory) beanFactory;
+    }
+
+    @Override
+    public Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) throws BeansException {
+
+        if (isInfrastructureClass(beanClass)) return null;
+
+        Collection<AspectJExpressionPointcutAdvisor> advisors = beanFactory.getBeansOfType(AspectJExpressionPointcutAdvisor.class).values();
+
+        for (AspectJExpressionPointcutAdvisor advisor : advisors) {
+            ClassFilter classFilter = advisor.getPointcut().getClassFilter();
+            if (!classFilter.matches(beanClass)) continue;
+
+            AdvisedSupport advisedSupport = new AdvisedSupport();
+
+            TargetSource targetSource = null;
+            try {
+                targetSource = new TargetSource(beanClass.getDeclaredConstructor().newInstance());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            advisedSupport.setTargetSource(targetSource);
+            advisedSupport.setMethodInterceptor((MethodInterceptor) advisor.getAdvice());
+            advisedSupport.setMethodMatcher(advisor.getPointcut().getMethodMatcher());
+            advisedSupport.setProxyTargetClass(false);
+
+            return new ProxyFactory(advisedSupport).getProxy();
+
+        }
+
+        return null;
+    }
+    
+}
+~~~
+
+这个DefaultAdvisorAutoProxyCreator 类的主要核心实现在于postProcessBeforeInstantiation ，在实例化之前做一些操作，从通过 beanFactory.getBeansOfType 获取 AspectJExpressionPointcutAdvisor 开始
+
+获取了 advisors 以后就可以遍历相应的 AspectJExpressionPointcutAdvisor 填充对应的属性信息，包括：目标对象、拦截方法、匹配器，之后返回代理对象即可
+
+那么现在调用方获取到的这个 Bean 对象就是一个已经被切面注入的对象了，当调用方法的时候，则会被按需拦截，处理用户需要的信息
+
+测试的仅需要自己实现MethodBeforeAdvice接口，实现before拦截方法
+
+~~~java
+public class UserServiceBeforeAdvice implements MethodBeforeAdvice {
+
+    @Override
+    public void before(Method method, Object[] args, Object target) throws Throwable {
+        System.out.println("拦截方法：" + method.getName());
+    }
+
+}
+~~~
+
+~~~xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+	         http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <bean id="userService" class="com.learn.test.bean.unit16.UserService">
+        <property name="token" value="whyNot2alibaba?"/>
+    </bean>
+
+    <bean class="com.learn.myspring.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"/>
+
+    <bean id="beforeAdvice" class="com.learn.test.bean.unit16.UserServiceBeforeAdvice"/>
+
+    <bean id="methodInterceptor" class="com.learn.myspring.aop.framework.adapter.MethodBeforeAdviceInterceptor">
+        <property name="advice" ref="beforeAdvice"/>
+    </bean>
+
+    <bean id="pointcutAdvisor" class="com.learn.myspring.aop.aspectj.AspectJExpressionPointcutAdvisor">
+        <property name="expression" value="execution(* com.learn.test.bean.unit16.IUserService.*(..))"/>
+        <property name="advice" ref="methodInterceptor"/>
+    </bean>
+
+</beans>
+~~~
+
+这回使用aop就像spring中一样了，通过在xml中配置即可，因为已经把aop的功能融合到Bean的生命周期中了，新增的拦截方法都会被自动处理
+
+目前实现了AOP功能的外在表现主要是把以前自己在单元测试中的切面拦截，交给spring的xml去配置，那么这里非常重要的一个点就是：就是把相应的功能如何与springbean的生命周期结合起来，可以使用BeanPostProcessor，因为他可以解决在bean对象执行初始化方法之前，用于修改新实例化的bean对象的扩展点，所以可以在这块处理自己的aop代理对象逻辑了
+
+____
+
+### 通过注解配置和包自动扫描的方式Bean对象的注册
 
