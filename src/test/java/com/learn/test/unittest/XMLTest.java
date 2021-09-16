@@ -57,12 +57,12 @@ public class XMLTest {
      * 和在spring.xml中配置 init-method="initDataMethod" destroy-method="destroyDataMethod"
      * 的两种具体在 AbstractAutowireCapableBeanFactory 完成初始方法和 AbstractApplicationContext
      * 处理销毁动作的具体实现过程
-     *
+     * <p>
      * 目前为止，此框架既可以在Bean注册完成实例化之前进行BeanFactoryPostProcessor 操作，
      * 也可以在实例化过程中执行前置操作和后置操作，现在又可以执行Bean的初始化方法和销毁方法
      */
     @Test
-    public void test_xml3(){
+    public void test_xml3() {
         ClassPathXmlApplicationContext applicationContext =
                 new ClassPathXmlApplicationContext("classpath:spring1.xml");
         applicationContext.registerShutdownHook();
@@ -74,5 +74,14 @@ public class XMLTest {
     @Test
     public void test_hook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> System.out.println("close！")));
+    }
+
+    @Test
+    public void testIsAssignableFrom() {
+        // A可以由B转换而来，描述的是继承关系，或者接口与接口实现类的关系
+        // 超类可以由任意类转换而来，或者可以理解为 判断A是B的父类
+        System.out.println(Object.class.isAssignableFrom(UserService.class)); //true
+        // B实现了A这个接口
+        System.out.println(ITest.class.isAssignableFrom(ITestImpl.class)); //true
     }
 }

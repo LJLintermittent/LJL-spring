@@ -1216,3 +1216,275 @@ ____
 
 ### 基于观察者模式，实现容器事件和事件监听器
 
+spring中有一个Event事件，他可以提供事件的定义，发布以及监听事件来完成一些自定义的动作。比如可以定义一个新用户注册的事件，当有用户执行注册完成以后，在事件监听中给用户发送一些优惠券和短信提醒，这样的操作就可以把属于基本功能的注册和对应的策略服务（策略服务是经常变换的，比如每个时间段注册的用户应该发送的优惠券是不一样的）解耦出来，降低系统的耦合，策略的改变不影响主要业务，也就是不变的业务流程。就像业务代码中使用消息队列一样，做一个服务的解耦，以及保证个别业务逻辑的最终一致性。
+
+目前需要实现这个功能，可以参照spring的实现，其实事件的这种设计本身就是一种观察者模式，他所要解决的就是一个对象状态改变后给其他对象通知的问题，而且要考虑易用和低耦合，保证高度的协作
+
+在功能实现上我们需要定义出事件类，事件监听，事件发布，而这些类的功能需要结合到spring的AbstractApplicationContext的refresh方法，以便于处理事件初始化和注册事件监听器的操作，这些操作应该整合到spring容器的生命周期中。
+
+在整个功能的实现中，仍然需要在面向用户使用的应用上下文中AbstractApplicationContext中添加相应的事件，包括初始化事件发布者，注册事件监听器，发布容器刷新事件等
+
+使用观察者模式定义事件类，监听类，发布类，同时还需要完成一个广播器的功能，接收到事件的推送以后进行分析处理符合监听事件接收者感兴趣的事情，也就是使用isAssignableFrom 来进行判断
+
+isAssignableFrom 和 instanceof 相似，只不过isAssignableFrom是用来判断子类和父类的关系的，或者接口的实现类和接口的关系，默认所有的类的终极父类都是object类。如果A.isAssignableFrom(B)结果是true，证明B可以转换成A，也就是A可以由B转换而来
+
+~~~java
+    @Test
+    public void testIsAssignableFrom() {
+        // A可以由B转换而来，描述的是继承关系，或者接口与接口实现类的关系
+        // 超类可以由任意类转换而来，或者可以理解为 判断A是B的父类
+        System.out.println(Object.class.isAssignableFrom(UserService.class)); //true
+        // B实现了A这个接口
+        System.out.println(ITest.class.isAssignableFrom(ITestImpl.class)); //true
+    }
+~~~
+
+接下来开始具体的事件实现：
+
+~~~wiki
+整体spring中是围绕event事件定义，发布，监听功能实现和把事件的相关内容使用AbstractApplicationContext的refresh方法进行注册和处理
+在实现的过程中主要以扩展spring context包为主，事件的实现也是在这个包下进行扩展的，所以目前所有的实现内容还是以IOC容器为主
+XXXApplicationContext容器都要继承事件发布接口ApplicationEventPublisher，并在实现类中提供事件监听功能ApplicationEventMulticaster 接口是注册监听器和发布事件的广播器，提供添加，移除和发布事件的功能
+最后是发布容器关闭事件，这个仍然需要扩展到AbstractApplicationContext的close方法，由注册到虚拟机的钩子来实现
+~~~
+
+
+
+~~~java
+public abstract class ApplicationEvent extends EventObject {
+
+    public ApplicationEvent(Object source) {
+        super(source);
+    }
+}
+~~~
+
+spring源码中这个类还加了时间戳，当通过构造方法创建的时候就会创建出一个时间，继承了JDK中的EventObject，所以可以定义出一个具备事件功能的抽象类，后续所有有关事件的类都需要继承这个类
+
+~~~java
+//ApplicationContextEvent是定义事件的抽象类，所有事件包括关闭，刷新，以及用户自己实现的事件，都需要继承这个类
+public class ApplicationContextEvent extends ApplicationEvent {
+
+    public ApplicationContextEvent(Object source) {
+        super(source);
+    }
+
+    public final ApplicationContext getApplicationContext() {
+        // eventobject 中的方法 getSource()
+        return (ApplicationContext) getSource();
+    }
+}
+~~~
+
+这个类与spring源码中完全一样,后面的XXevent都是继承ApplicationContextEvent，这些类中都只有一个构造方法，来把source 委派到父类，父类继续往上委派，也就是调用super方法
+
+~~~java
+//监听关闭
+public class ContextClosedEvent extends ApplicationContextEvent {
+
+    public ContextClosedEvent(Object source) {
+        super(source);
+    }
+
+}
+~~~
+
+ApplicationEvent是定义事件的抽象类，所有的事件包括关闭，刷新以及用户自己实现的事件，都需要继承这个类
+
+ContextClosedEvent、ContextRefreshedEvent，分别是 Spring 框架自己实现的两个事件类，可以用于监听刷新和关闭动作
+
+~~~java
+// 事件广播器，定义了添加事件监听和删除监听以及一个广播方法multicastEvent
+// 最终推送事件要经过这个multicastEvent方法来处理推送该事件
+public interface ApplicationEventMulticaster {
+
+
+    void addApplicationListener(ApplicationListener<?> listener);
+
+
+    void removeApplicationListener(ApplicationListener<?> listener);
+
+
+    void multicastEvent(ApplicationEvent event);
+}
+
+~~~
+
+ApplicationEventMulticaster事件广播器，这里只定义了添加监听，移除监听和广播的方法，spring中除了这些方法以外还有addApplicationListenerBean等这些带Bean的方法。广播事件方法 multicastEvent 最终推送事件消息也会经过这个接口方法来处理该接收的事件
+
+接下来是AbstractApplicationEventMulticaster 这个抽象类，它是对事件广播器的公用方法的提取，在这个类中可以实现一些基本功能，避免直接实现接口的类需要实现过多的方法
+
+~~~java
+/*
+   AbstractApplicationEventMulticaster是对事件广播器的公用方法提取，在这个类中可以实现一些基本功能，避免所有直接
+   实现接口方还需要处理细节
+   除了像 addApplicationListener、removeApplicationListener，这样的通用方法，
+   这里这个类中主要是对 getApplicationListeners 和 supportsEvent 的处理
+   getApplicationListeners()方法主要是摘取符合广播事件中的监听处理器，具体过滤动作在supportsEvent()方法中
+ */
+public abstract class AbstractApplicationEventMulticaster implements ApplicationEventMulticaster, BeanFactoryAware {
+
+    public final Set<ApplicationListener<ApplicationEvent>> applicationListeners = new LinkedHashSet<>();
+
+    private BeanFactory beanFactory;
+
+    @Override
+    public void addApplicationListener(ApplicationListener<?> listener) {
+        applicationListeners.add((ApplicationListener<ApplicationEvent>) listener);
+    }
+
+    @Override
+    public void removeApplicationListener(ApplicationListener<?> listener) {
+        applicationListeners.remove(listener);
+    }
+
+    @Override
+    public final void setBeanFactory(BeanFactory beanFactory) {
+        this.beanFactory = beanFactory;
+    }
+
+    /**
+     * Return a Collection of ApplicationListeners matching the given
+     * event type. Non-matching listeners get excluded early.
+     * @param event the event to be propagated. Allows for excluding
+     * non-matching listeners early, based on cached matching information.
+     * @return a Collection of ApplicationListeners
+     * @see cn.bugstack.springframework.context.ApplicationListener
+     */
+    protected Collection<ApplicationListener> getApplicationListeners(ApplicationEvent event) {
+        LinkedList<ApplicationListener> allListeners = new LinkedList<ApplicationListener>();
+        for (ApplicationListener<ApplicationEvent> listener : applicationListeners) {
+            if (supportsEvent(listener, event)) allListeners.add(listener);
+        }
+        return allListeners;
+    }
+
+    /**
+     * 监听器是否对该事件感兴趣
+     */
+    protected boolean supportsEvent(ApplicationListener<ApplicationEvent> applicationListener, ApplicationEvent event) {
+        Class<? extends ApplicationListener> listenerClass = applicationListener.getClass();
+
+        // 按照 CglibSubclassingInstantiationStrategy、SimpleInstantiationStrategy 不同的实例化类型，需要判断后获取目标 class
+        // 如果是cglib的实例化策略，那么需要获取父类的Class，而simple实例化则不需要
+        Class<?> targetClass = ClassUtils.isCglibProxyClass(listenerClass) ? listenerClass.getSuperclass() : listenerClass;
+        Type genericInterface = targetClass.getGenericInterfaces()[0];
+
+        Type actualTypeArgument = ((ParameterizedType) genericInterface).getActualTypeArguments()[0];
+        String className = actualTypeArgument.getTypeName();
+        Class<?> eventClassName;
+        try {
+            eventClassName = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new BeansException("wrong event class name: " + className);
+        }
+        // 判定此 eventClassName 对象所表示的类或接口与指定的 event.getClass() 参数所表示的类或接口是否相同，或是否是其超类或超接口。
+        // isAssignableFrom是用来判断子类和父类的关系的，或者接口的实现类和接口的关系的，
+        // 默认所有的类的终极父类都是Object。如果A.isAssignableFrom(B)结果是true，证明B可以转换成为A,也就是A可以由B转换而来。
+        return eventClassName.isAssignableFrom(event.getClass());
+    }
+
+}
+~~~
+
+除了像 addApplicationListener、removeApplicationListener，这样的通用方法，这里这个类中主要是对 getApplicationListeners 和 supportsEvent 的处理。
+
+getApplicationListeners 方法主要是摘取符合广播事件中的监听处理器，具体过滤动作在 supportsEvent 方法中
+
+在 supportsEvent 方法中，主要包括对Cglib、Simple不同实例化需要获取目标Class，Cglib代理类需要获取父类的Class，普通实例化的不需要。接下来就是通过提取接口和对应的 ParameterizedType 和 eventClassName，方便最后确认是否为子类和父类的关系，以此证明此事件归这个符合的类处理。
+
+接下来创建事件发布者的定义和实现：
+
+~~~java
+// 是整个事件的发布接口，所有的事件都需要从这个接口发布出去
+public interface ApplicationEventPublisher {
+
+    void publishEvent(ApplicationEvent event);
+}
+
+~~~
+
+接下来在AbstractApplicationContext 的refresh方法中将注册监听器等业务逻辑加到ioc容器的创建周期中
+
+~~~java
+        // 1. 创建 BeanFactory，并加载 BeanDefinition
+        refreshBeanFactory();
+
+        // 2. 获取 BeanFactory
+        ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+
+        // 3. 添加 ApplicationContextAwareProcessor，让继承自 ApplicationContextAware 的 Bean
+        // 对象都能感知所属的 ApplicationContext
+        beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+
+        // 4. 在 Bean 实例化之前，执行 BeanFactoryPostProcessor (Invoke factory processors registered as beans in the context.)
+        invokeBeanFactoryPostProcessors(beanFactory);
+
+        // 5. BeanPostProcessor 需要提前于其他 Bean 对象实例化之前执行注册操作
+        registerBeanPostProcessors(beanFactory);
+
+        // 6. 初始化事件发布者
+        initApplicationEventMulticaster();
+
+        // 7. 注册事件监听器
+        registerListeners();
+
+        // 8. 提前实例化单例Bean对象，涉及循环依赖的处理
+        beanFactory.preInstantiateSingletons();
+
+        // 9. 发布容器刷新完成事件
+        finishRefresh();
+~~~
+
+~~~java
+    private void initApplicationEventMulticaster() {
+        ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+        applicationEventMulticaster = new SimpleApplicationEventMulticaster(beanFactory);
+        beanFactory.registerSingleton(APPLICATION_EVENT_MULTICASTER_BEAN_NAME, applicationEventMulticaster);
+    }
+~~~
+
+所谓的初始化事件发布者，也就是创建一个SimpleApplicationEventMulticaster，一个事件广播器，其实就是一个普通的Bean对象，然后把这个Bean对象注册到单例池中
+
+~~~java
+    private void registerListeners() {
+        Collection<ApplicationListener> applicationListeners = getBeansOfType(ApplicationListener.class).values();
+        for (ApplicationListener listener : applicationListeners) {
+            applicationEventMulticaster.addApplicationListener(listener);
+        }
+    }
+~~~
+
+注册事件监听器的原理就是获取到所有的监听器Bean对象，根据getBeansOfType(ApplicationListener.class)这种方式来获取实现了监听器接口的Bean对象，然后把这些监听者加到容器中。
+
+最终finishRefresh（）完成容器的刷新，其实就是发布一个容器启动完成的事件
+
+总结：
+
+在抽象应用上下文中的refresh方法，主要新增了初始化事件发布者，注册事件监听器，发布容器刷新完成事件，三个方法用于处理事件操作
+
+初始化事件发布者（initApplicationEventMulticaster），主要用于实例化一个SimpleApplicationEventMulticaster，这是一个事件广播器
+
+注册事件监听器（registerListeners）通过getBeansOfType 的方式获取到所有从spring.xml中加载到的事件配置对象
+
+发布容器刷新事件（finishRefresh）发布了第一个服务器启动完成后的事件，这个事件publishEvent 发布出去，其实也就是调用了applicationEventMulticaster的multicastEvent方法
+
+最后一个close方法中，发布了一个容器关闭事件 publishEvent(new ContextClosedEvent(this));
+
+~~~java
+    @Override
+    public void registerShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(this::close));
+    }
+
+    @Override
+    public void close() {
+        // 发布容器关闭事件
+        publishEvent(new ContextClosedEvent(this));
+
+        // 执行销毁单例bean的销毁方法
+        getBeanFactory().destroySingletons();
+    }
+~~~
+
+也就是向虚拟注册一个钩子，在虚拟机关闭的时候发布一个容器关闭事件，然后对单例Bean进行一个销毁
