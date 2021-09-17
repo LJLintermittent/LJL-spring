@@ -21,6 +21,7 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 
     private BeanDefinitionRegistry registry;
 
+    // 拿到了所有的BeanDefinition，下一步应该将其注册到容器中，所谓的注册其实就是放到beanDefinitionMap中
     public ClassPathBeanDefinitionScanner(BeanDefinitionRegistry registry) {
         this.registry = registry;
     }

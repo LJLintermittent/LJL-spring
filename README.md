@@ -1,3 +1,5 @@
+
+
 ## 《LJL-Spring》项目设计思路
 
 # IOC模块
@@ -2200,4 +2202,185 @@ public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
 依赖于 BeanFactoryPostProcessor 在 Bean 生命周期的属性，可以在 Bean 对象实例化之前，改变属性信息。所以这里通过实现 BeanFactoryPostProcessor 接口，完成对配置文件的加载以及摘取占位符中的在属性文件里的配置
 
 这样就可以把从配置文件中提取到的配置信息放置到属性配置中了，`buffer.replace(startIdx, stopIdx + 1, propVal); propertyValues.addPropertyValue`
+
+接下来先总结一下注解的原理：
+
+在以前，xml文件是框架解耦合的杀手锏，它以松耦合的方式完成框架中所有的配置，但是随着项目越来越庞大，xml的内容也越来越多，难以维护，于是就又放弃了松耦合，采用高耦合的注解配置，在任何需要配置的的地方都可以进行注解，注解虽然和业务代码耦合在一起，但是由于使用成本很低，很简洁，也比较美观，所以牺牲了耦合性来获取高效率
+
+对于注解的本质，用一句话来概括就是所有注解类型都继承Annotation接口，所以一个注解本质上就是一个继承了Annotation接口的接口
+
+那么对于一个注解究竟怎么发挥作用，其实他只是一种特殊的标记，如果没有相应的解析代码，那么它连注释都不如
+
+那么对于注解来说，重点应该关注的是解析的代码，而解析一个类或者方法的注解往往有两种方式：
+
+1.编译期直接扫描：典型就是@Override，一旦某个方法被修饰了@Override，编译器就会检查当前方法的签名是否是真正重写了父类的方法，也就是比较父类中是否具有一个相同签名的方法，这种解析形式当然是虚拟机提供的能力，所以对于我们自定义的注解，如果不修改hotspot源码，我们的注解只能通过第二种方式进行解析使用
+
+2.第二种就是运行期反射
+
+元注解：
+
+元注解就是用于修饰注解的注解，虽然普通注解的作用范围也有注解这个选项
+
+@Target：注解的作用目标
+
+@Retention：注解的生命周期
+
+@Documented：注解是否应该被包含在javadoc中
+
+@Inherited：是否允许子类继承该注解
+
+重点说一下注解的生命周期：
+
+1.source：当前注解编译期可见，不会写入字节码文件
+
+2.class：类加载阶段丢弃，会写入字节码文件
+
+3.runtime：永久保存，可以反射获取
+
+有些注解会在编译期结束后被丢弃，还有一种是会被编译器编译进字节码文件，无论是类还是方法，乃至字段，他们都有属性表，而java虚拟机也定义了几种注解属性表用来存储注解信息，但是这种可见性不会被带到方法区，类加载时会被丢弃，由于这个注解信息不会被带入到方法区，所以反射无法获取。
+
+@Override是一个典型的编译型注解，生命周期为source，说明主要作用是编译期间进行一个检查，编译器在对java文件编译成字节码的过程中，一旦检测到某个方法上面标注了@Override注解，就会去父类匹配是否有一个同样方法 签名的方法，如果匹配不上，那么编译不通过，一旦编译通过，这个注解就被清除，class文件中不会留下痕迹
+
+另外注解的本质再提一次，注解本质上是继承了 Annotation 接口的接口，而当你通过反射，也就是 getAnnotation 方法去获取一个注解类实例的时候，其实 JDK 是通过动态代理机制生成一个实现我们注解（接口）的代理类
+
+~~~java
+    @LJL
+    public static void main(String[] args) throws NoSuchMethodException {
+        Class<?> clazz = LJLTest.class;
+        Method method = clazz.getMethod("main", String[].class);
+        LJL annotation = method.getAnnotation(LJL.class);
+        
+    }
+~~~
+
+最后总结一下注解的工作流程：
+
+首先我们可以通过键值对的形式为注解属性赋值，其实就是为接口中的方法赋值（明明是属性操作，非要用方法来实现）
+
+接着，用注解修饰某个元素，编译器将会在编译期扫描每个类或者方法上的注解，做一个基本的检查，看注解是否允许出现在这个位置，最后会将注解的信息写到元素的属性表中，也就是class文件的常量池表中，当然如果标记的是class类型的生命周期，那么不会进入方法区，所以无法反射
+
+接下来，对于可以反射获取的注解，虚拟机会将所有生命周期为runtime的注解取出来放到一个map中，来创建一个AnnotationInvocationHandler 实例，因为注解他是接口，获取注解实例其实是通过jdk动态代理获取它的代理类，这个map会传给AnnotationInvocationHandler 。
+
+这样一个注解实例就被创建出来了，他本质就是一个代理类，那么invoke方法的核心逻辑就是通过方法名返回注解属性值
+
+注解定义完以后，项目中应该要处理注解
+
+~~~java
+// 处理对象扫描装配
+public class ClassPathScanningCandidateComponentProvider {
+
+    /**
+     * 这里先要提供一个可以通过配置路径 basePackage=com.learn.myspring.test.bean
+     * 解析出 classes 信息的工具方法 findCandidateComponents，
+     * 通过这个方法就可以扫描到所有 @Component 注解的 Bean 对象了
+     */
+    public Set<BeanDefinition> findCandidateComponents(String basePackage) {
+        Set<BeanDefinition> candidates = new LinkedHashSet<>();
+        Set<Class<?>> classes = ClassUtil.scanPackageByAnnotation(basePackage, Component.class);
+        for (Class<?> clazz : classes) {
+            candidates.add(new BeanDefinition(clazz));
+        }
+        return candidates;
+    }
+
+}
+~~~
+
+这里使用了hutool工具类，scanPackageByAnnotation：扫描指定包下所有包含指定注解的类，就是@component注解标注的类
+
+通过这个findCandidateComponents方法，就可以扫描到指定包中所有含有@component注解的类，拿到他们的class对象后，就可以创建BeanDefinition了
+
+接下来是注册的过程
+
+```java
+public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateComponentProvider {
+
+    private BeanDefinitionRegistry registry;
+
+    // 拿到了所有的BeanDefinition，下一步应该将其注册到容器中，所谓的注册其实就是放到beanDefinitionMap中
+    public ClassPathBeanDefinitionScanner(BeanDefinitionRegistry registry) {
+        this.registry = registry;
+    }
+
+    public void doScan(String... basePackages) {
+        for (String basePackage : basePackages) {
+            Set<BeanDefinition> candidates = findCandidateComponents(basePackage);
+            for (BeanDefinition beanDefinition : candidates) {
+                // 解析 Bean 的作用域 singleton、prototype
+                String beanScope = resolveBeanScope(beanDefinition);
+                if (StrUtil.isNotEmpty(beanScope)) {
+                    beanDefinition.setScope(beanScope);
+                }
+                registry.registerBeanDefinition(determineBeanName(beanDefinition), beanDefinition);
+            }
+        }
+        // 注册处理注解的 BeanPostProcessor（@Autowired、@Value）
+        registry.registerBeanDefinition("com.learn.myspring.context.annotation.internalAutowiredAnnotationProcessor",
+                new BeanDefinition(AutowiredAnnotationBeanPostProcessor.class));
+    }
+
+    private String resolveBeanScope(BeanDefinition beanDefinition) {
+        Class<?> beanClass = beanDefinition.getBeanClass();
+        Scope scope = beanClass.getAnnotation(Scope.class);
+        if (null != scope) return scope.value();
+        return StrUtil.EMPTY;
+    }
+
+    private String determineBeanName(BeanDefinition beanDefinition) {
+        Class<?> beanClass = beanDefinition.getBeanClass();
+        Component component = beanClass.getAnnotation(Component.class);
+        String value = component.value();
+        if (StrUtil.isEmpty(value)) {
+            value = StrUtil.lowerFirst(beanClass.getSimpleName());
+        }
+        return value;
+    }
+}
+```
+
+原理也非常简单，来个继承关系，就可以使用父类的查找指定包指定注解的类的方法，拿到所有的bean定义后，下一步就是注册，当然在注册前还得看一下bean的作用域，以及component注解中是否配置了value值，也就是Bean的名称，没有配置的话就是类名首字母小写
+
+注解处理的代码写完后，还要写解析xml配置的代码，因为目前还是需要componentScan标签来指定扫描哪些包
+
+~~~java
+        // 解析 context:component-scan 标签，扫描包中的类并提取相关信息，用于组装 BeanDefinition
+        Element componentScan = root.element("component-scan");
+        if (null != componentScan) {
+            String scanPath = componentScan.attributeValue("base-package");
+            if (StrUtil.isEmpty(scanPath)) {
+                throw new BeansException("The value of base-package attribute can not be empty or null");
+            }
+            scanPackage(scanPath);
+        }
+~~~
+
+~~~java
+    private void scanPackage(String scanPath) {
+        String[] basePackages = StrUtil.splitToArray(scanPath, ',');
+        ClassPathBeanDefinitionScanner scanner = new ClassPathBeanDefinitionScanner(getRegistry());
+        scanner.doScan(basePackages);
+    }
+~~~
+
+可以看到核心代码就是doScan，扫描打了加到bean定义的map中
+
+~~~xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+	         http://www.springframework.org/schema/beans/spring-beans.xsd
+		 http://www.springframework.org/schema/context">
+
+    <context:component-scan base-package="com.duanxu.lijiale-spring.test.bean"/>
+
+</beans>
+~~~
+
+配置文件中现在这样配置就可以扫描到所有标注了@component注解的类，从而加入到IOC容器中
+
+___
+
+### 通过注解给属性注入配置和给Bean对象自动注入其他对象
 
