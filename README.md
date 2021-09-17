@@ -2384,3 +2384,235 @@ ___
 
 ### 通过注解给属性注入配置和给Bean对象自动注入其他对象
 
+接下来实现的功能的是spring中大名鼎鼎的@Autowired注解以及比较实用的@value注解
+
+其实在完成 Bean 对象的基础功能后，后续陆续添加的功能都是围绕着 Bean 的生命周期进行的，比如修改 Bean 的定义 BeanFactoryPostProcessor，处理 Bean 的属性要用到 BeanPostProcessor，完成个性的属性操作则专门继承 BeanPostProcessor 提供新的接口，因为这样才能通过 instanceof 判断出具有标记性的接口。所以关于 Bean 等等的操作，以及监听 Aware、获取 BeanFactory，都需要在 Bean 的生命周期中完成。那么我们在设计属性和 Bean 对象的注入时候，也会用到 BeanPostProcessor 来完成在设置 Bean 属性之前，允许 BeanPostProcessor 修改属性值
+
+要处理自动扫描注入，包括属性注入、对象注入，则需要在对象属性 `applyPropertyValues` 填充之前 ，把属性信息写入到 PropertyValues 的集合中去。这一步的操作相当于是解决了以前在 spring.xml 配置属性的过程，非常巧妙啊，把这个功能加入到Bean生命周期，xml文件中需要写的就越来越少
+
+而在属性的读取中，需要依赖于对 Bean 对象的类中属性的配置了注解的扫描，`field.getAnnotation(Value.class);` 依次拿出符合的属性并填充上相应的配置信息。这里有一点 ，属性的配置信息需要依赖于BeanFactoryPostProcessor 的实现类 PropertyPlaceholderConfigurer，把值写入到 AbstractBeanFactory的embeddedValueResolvers集合中，这样才能在属性填充中利用 beanFactory 获取相应的属性值
+
+还有一个是关于 @Autowired 对于对象的注入，其实这一个和属性注入的唯一区别是对于对象的获取 beanFactory.getBean(fieldType)
+
+当所有的属性被设置到 PropertyValues 完成以后，接下来就到了创建对象的下一步，属性填充，而此时就会把我们一一获取到的配置和对象填充到属性上，也就实现了自动注入的功能
+
+整体实现过程围绕实现接口 InstantiationAwareBeanPostProcessor 的类 AutowiredAnnotationBeanPostProcessor 作为入口点，被 AbstractAutowireCapableBeanFactory创建 Bean 对象过程中调用扫描整个类的属性配置中含有自定义注解 `Value`、`Autowired`、`Qualifier`，的属性值
+
+~~~java
+//解析字符串操作
+public interface StringValueResolver {
+
+    String resolveStringValue(String strVal);
+
+}
+~~~
+
+定义一个字符串解析接口，与spring源码一致
+
+~~~java
+public class PropertyPlaceholderConfigurer implements BeanFactoryPostProcessor {
+
+    @Override
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+        try {
+            // 加载属性文件
+            DefaultResourceLoader resourceLoader = new DefaultResourceLoader();
+            Resource resource = resourceLoader.getResource(location);
+            
+            // ... 占位符替换属性值、设置属性值
+
+            // 向容器中添加字符串解析器，供解析@Value注解使用
+            StringValueResolver valueResolver = new PlaceholderResolvingStringValueResolver(properties);
+            beanFactory.addEmbeddedValueResolver(valueResolver);
+            
+        } catch (IOException e) {
+            throw new BeansException("Could not load properties", e);
+        }
+    }
+
+    private class PlaceholderResolvingStringValueResolver implements StringValueResolver {
+
+        private final Properties properties;
+
+        public PlaceholderResolvingStringValueResolver(Properties properties) {
+            this.properties = properties;
+        }
+
+        @Override
+        public String resolveStringValue(String strVal) {
+            return PropertyPlaceholderConfigurer.this.resolvePlaceholder(strVal, properties);
+        }
+
+    }
+
+}
+~~~
+
+在解析属性配置的类 PropertyPlaceholderConfigurer 中，最主要的其实就是这行代码的操作 `beanFactory.addEmbeddedValueResolver(valueResolver)` 这是把属性值写入到了 AbstractBeanFactory 的 embeddedValueResolvers 中添加了一个字符串解析器。
+
+embeddedValueResolvers 是 AbstractBeanFactory 类新增加的集合 `List<StringValueResolver> embeddedValueResolvers`
+
+接下来自定义注解的代码省略，主要是@Value ，@component，@Autowired，用来注入对象和注入属性
+
+而 Qualifier 一般与 Autowired 配合使用，当自动注入一个接口时，如果这个接口有很多的实现类，那么在使用的时候spring不知道到底应该调用哪个实现类中的方法，所以配合Qualifier 可以指定实现类，当然也可以直接在controller中注入想要的实现类
+
+~~~java
+// AutowiredAnnotationBeanPostProcessor 是实现接口 InstantiationAwareBeanPostProcessor 的一个用于在 Bean 对象实例化完成后，
+// 设置属性操作前的处理属性信息的类和操作方法。只有实现了 BeanPostProcessor 接口才有机会在 Bean 的生命周期中处理初始化信息
+public class AutowiredAnnotationBeanPostProcessor implements InstantiationAwareBeanPostProcessor, BeanFactoryAware {
+
+    private ConfigurableListableBeanFactory beanFactory;
+
+    @Override
+    public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+        this.beanFactory = (ConfigurableListableBeanFactory) beanFactory;
+    }
+
+    @Override
+    public PropertyValues postProcessPropertyValues(PropertyValues pvs, Object bean, String beanName) throws BeansException {
+        // 1. 处理注解 @Value
+        Class<?> clazz = bean.getClass();
+        clazz = ClassUtils.isCglibProxyClass(clazz) ? clazz.getSuperclass() : clazz;
+
+        Field[] declaredFields = clazz.getDeclaredFields();
+
+        for (Field field : declaredFields) {
+            Value valueAnnotation = field.getAnnotation(Value.class);
+            if (null != valueAnnotation) {
+                String value = valueAnnotation.value();
+                value = beanFactory.resolveEmbeddedValue(value);
+                BeanUtil.setFieldValue(bean, field.getName(), value);
+            }
+        }
+
+        // 2. 处理注解 @Autowired
+        for (Field field : declaredFields) {
+            Autowired autowiredAnnotation = field.getAnnotation(Autowired.class);
+            if (null != autowiredAnnotation) {
+                Class<?> fieldType = field.getType();
+                String dependentBeanName = null;
+                Qualifier qualifierAnnotation = field.getAnnotation(Qualifier.class);
+                Object dependentBean = null;
+                if (null != qualifierAnnotation) {
+                    dependentBeanName = qualifierAnnotation.value();
+                    dependentBean = beanFactory.getBean(dependentBeanName, fieldType);
+                } else {
+                    dependentBean = beanFactory.getBean(fieldType);
+                }
+                BeanUtil.setFieldValue(bean, field.getName(), dependentBean);
+            }
+        }
+
+        return pvs;
+    }
+
+    @Override
+    public Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) throws BeansException {
+        return null;
+    }
+
+    @Override
+    public boolean postProcessAfterInstantiation(Object bean, String beanName) throws BeansException {
+        return true;
+    }
+
+    @Override
+    public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+        return null;
+    }
+
+    @Override
+    public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+        return null;
+    }
+
+}
+~~~
+
+核心逻辑也非常简单，由于这个方法是在bean的实例化之后进行的，那么可以获取到这个类的类型，然后通过反射获取属性上标注的注解
+
+最终进行相应的处理，比如对于value注解来说，解析出来后直接把这个属性值用beanutil进行设置，对于autowired，需要注意加没加Qualifier注解，总体思路就是扫描加了注解的属性，然后通过反射获取属性的类型，拿到类型就可以走getBean的流程，就相当会把autowired注解标注的对象加入到ioc容器中，然后beanutil来设置属性值。
+
+*只有实现了 BeanPostProcessor 接口才有机会在 Bean 的生命周期中处理初始化信息*
+
+核心方法 postProcessPropertyValues，主要用于处理类含有 @Value、@Autowired 注解的属性，进行属性信息的提取和设置。
+
+另外需要注意如果是cglib创建的对象，那么获取Bean的类型应该是父类的类型，否则不需要
+
+最后需要将这些功能整合到Bean的生命周期：
+
+~~~java
+ protected Object doCreateBean(String beanName, BeanDefinition beanDefinition, Object[] args) {
+        Object bean = null;
+        try {
+            // 实例化 Bean
+            bean = createBeanInstance(beanDefinition, beanName, args);
+
+            // 处理循环依赖，将实例化后的Bean对象提前放入缓存中暴露出来
+            if (beanDefinition.isSingleton()) {
+                Object finalBean = bean;
+                addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, beanDefinition, finalBean));
+            }
+
+            // 实例化后判断
+            boolean continueWithPropertyPopulation = applyBeanPostProcessorsAfterInstantiation(beanName, bean);
+            if (!continueWithPropertyPopulation) {
+                return bean;
+            }
+            // 在设置 Bean 属性之前，允许 BeanPostProcessor 修改属性值
+            applyBeanPostProcessorsBeforeApplyingPropertyValues(beanName, bean, beanDefinition);
+            // 给 Bean 填充属性
+            applyPropertyValues(beanName, bean, beanDefinition);
+            // 执行 Bean 的初始化方法和 BeanPostProcessor 的前置和后置处理方法
+            bean = initializeBean(beanName, bean, beanDefinition);
+        } catch (Exception e) {
+            throw new BeansException("Instantiation of bean failed", e);
+        }
+
+        // 注册实现了 DisposableBean 接口的 Bean 对象
+        registerDisposableBeanIfNecessary(beanName, bean, beanDefinition);
+
+        // 判断 SCOPE_SINGLETON、SCOPE_PROTOTYPE
+        Object exposedObject = bean;
+        if (beanDefinition.isSingleton()) {
+            // 获取代理对象
+            exposedObject = getSingleton(beanName);
+            registerSingleton(beanName, exposedObject);
+        }
+        return exposedObject;
+
+    }
+~~~
+
+~~~java
+    /**
+     * 在设置 Bean 属性之前，允许 BeanPostProcessor 修改属性值
+     */
+    protected void applyBeanPostProcessorsBeforeApplyingPropertyValues(String beanName, Object bean, BeanDefinition beanDefinition) {
+        for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {
+            if (beanPostProcessor instanceof InstantiationAwareBeanPostProcessor){
+                PropertyValues pvs = ((InstantiationAwareBeanPostProcessor) beanPostProcessor).postProcessPropertyValues(beanDefinition.getPropertyValues(), bean, beanName);
+                if (null != pvs) {
+                    for (PropertyValue propertyValue : pvs.getPropertyValues()) {
+                        beanDefinition.getPropertyValues().addPropertyValue(propertyValue);
+                    }
+                }
+            }
+        }
+    }  
+~~~
+
+可以看到，给bean填充属性之前，需要应用一个beanpostprocessors，来处理加入进来的实现类
+
+AbstractAutowireCapableBeanFactory#createBean 方法中有这一条新增加的方法调用，就是在`设置 Bean 属性之前，允许 BeanPostProcessor 修改属性值` 的操作 `applyBeanPostProcessorsBeforeApplyingPropertyValues`
+
+那么这个 applyBeanPostProcessorsBeforeApplyingPropertyValues 方法中，首先就是获取已经注入的 BeanPostProcessor 集合并从中筛选出继承接口 InstantiationAwareBeanPostProcessor 的实现类
+
+最后就是调用相应的 postProcessPropertyValues 方法以及循环设置属性值信息，`beanDefinition.getPropertyValues().addPropertyValue(propertyValue);`
+
+从整个注解信息扫描注入的实现内容来看，一直是围绕着在 Bean 的生命周期中进行处理，就像 BeanPostProcessor 用于修改新实例化 Bean 对象的扩展点，提供的接口方法可以用于处理 Bean 对象实例化前后进行处理操作。而有时候需要做一些差异化的控制，所以还需要继承 BeanPostProcessor 接口，定义新的接口 InstantiationAwareBeanPostProcessor 这样就可以区分出不同扩展点的操作了
+
+像是接口用 instanceof 判断，注解用 Field.getAnnotation(Value.class); 获取，都是相当于在类上做的一些标识性信息，便于可以用一些方法找到这些功能点，以便进行处理。所以在我们日常开发设计的组件中，也可以运用上这些特点。
+
+____
+
