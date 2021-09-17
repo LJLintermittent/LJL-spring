@@ -1,5 +1,7 @@
 package com.learn.test.unittest;
 
+import org.junit.Test;
+
 import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,9 +17,13 @@ import java.util.concurrent.ConcurrentHashMap;
 @SuppressWarnings("all")
 public class CircleTest {
 
+    /**
+     * 此demo仅使用一级缓存来解决最普通场景中的循环依赖问题
+     */
     private final static Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    public void test() throws Exception {
         System.out.println(getBean(B.class).getA());
         System.out.println(getBean(A.class).getB());
     }
@@ -28,18 +34,20 @@ public class CircleTest {
             return (T) singletonObjects.get(beanName);
         }
         // 实例化对象入缓存
-        Object obj = beanClass.newInstance();
-        singletonObjects.put(beanName, obj);
+        //反射，默认空参构造
+        Object bean = beanClass.newInstance();
+        singletonObjects.put(beanName, bean);
         // 属性填充补全对象
-        Field[] fields = obj.getClass().getDeclaredFields();
+        Field[] fields = bean.getClass().getDeclaredFields();
         for (Field field : fields) {
             field.setAccessible(true);
             Class<?> fieldClass = field.getType();
             String fieldBeanName = fieldClass.getSimpleName().toLowerCase();
-            field.set(obj, singletonObjects.containsKey(fieldBeanName) ? singletonObjects.get(fieldBeanName) : getBean(fieldClass));
+            field.set(bean, singletonObjects.containsKey(fieldBeanName) ? singletonObjects.get(fieldBeanName)
+                    : getBean(fieldClass));
             field.setAccessible(false);
         }
-        return (T) obj;
+        return (T) bean;
     }
 
 }
