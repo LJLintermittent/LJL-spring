@@ -12,7 +12,7 @@ import org.aopalliance.intercept.MethodInterceptor;
  */
 // 包装切面通知信息
 // AdvisedSupport，主要是用于把代理、拦截、匹配的各项属性包装到一个类中，方便在 Proxy 实现类进行使用
-// 这和业务开发中包装入参是一个道理
+// 这和业务开发中包装入参是一个道理，类似与DTO
 public class AdvisedSupport {
 
     /*

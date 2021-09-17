@@ -2616,3 +2616,5 @@ AbstractAutowireCapableBeanFactory#createBean 方法中有这一条新增加的�
 
 ____
 
+### 三级缓存处理循环依赖
+
