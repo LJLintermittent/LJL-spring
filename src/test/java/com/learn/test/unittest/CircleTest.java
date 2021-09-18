@@ -3,6 +3,7 @@ package com.learn.test.unittest;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,6 +31,7 @@ public class CircleTest {
 
     private static <T> T getBean(Class<T> beanClass) throws Exception {
         String beanName = beanClass.getSimpleName().toLowerCase();
+        System.out.println(beanName);
         if (singletonObjects.containsKey(beanName)) {
             return (T) singletonObjects.get(beanName);
         }
@@ -43,6 +45,7 @@ public class CircleTest {
             field.setAccessible(true);
             Class<?> fieldClass = field.getType();
             String fieldBeanName = fieldClass.getSimpleName().toLowerCase();
+            // 递归创建
             field.set(bean, singletonObjects.containsKey(fieldBeanName) ? singletonObjects.get(fieldBeanName)
                     : getBean(fieldClass));
             field.setAccessible(false);

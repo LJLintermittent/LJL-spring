@@ -2618,3 +2618,224 @@ ____
 
 ### 三级缓存处理循环依赖
 
+A的完整创建依赖于B，B的完整创建依赖于A，那么在创建对象的时候就会出现循环依赖，首先循环依赖的产生肯定是通过set方法注入产生的 ，如果构造注入，那么编译都过不去，并且对于spring来说，他解决的循环依赖问题是单例Bean的循环依赖，因为只有单例Bean才会进入缓存，可以借助缓存的思想来完成完整对象的创建，spring中默认的bean的作用域也是单例。所以在日常开发中，spring已经替我们解决了循环依赖的问题。
+
+按照spring框架的设计，用于解决循环依赖用到了三个缓存，分别存放成品对象，半成品对象（实例创建完毕，属性没填充），代理对象分阶段存储对象内容，来解决循环依赖问题
+
+解决循环依赖的核心原理：如果只用一级缓存，其实都能解决普通对象的循环依赖：
+
+~~~java
+public class CircleTest {
+
+    /**
+     * 此demo仅使用一级缓存来解决最普通场景中的循环依赖问题
+     */
+    private final static Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
+
+    @Test
+    public void test() throws Exception {
+        System.out.println(getBean(B.class).getA());
+        System.out.println(getBean(A.class).getB());
+    }
+
+    private static <T> T getBean(Class<T> beanClass) throws Exception {
+        String beanName = beanClass.getSimpleName().toLowerCase();
+        System.out.println(beanName);
+        if (singletonObjects.containsKey(beanName)) {
+            return (T) singletonObjects.get(beanName);
+        }
+        // 实例化对象入缓存
+        //反射，默认空参构造
+        Object bean = beanClass.newInstance();
+        singletonObjects.put(beanName, bean);
+        // 属性填充补全对象
+        Field[] fields = bean.getClass().getDeclaredFields();
+        for (Field field : fields) {
+            field.setAccessible(true);
+            Class<?> fieldClass = field.getType();
+            String fieldBeanName = fieldClass.getSimpleName().toLowerCase();
+            // 递归创建
+            field.set(bean, singletonObjects.containsKey(fieldBeanName) ? singletonObjects.get(fieldBeanName)
+                    : getBean(fieldClass));
+            field.setAccessible(false);
+        }
+        return (T) bean;
+    }
+
+}
+
+class A {
+
+    private B b;
+
+    public B getB() {
+        return b;
+    }
+
+    public void setB(B b) {
+        this.b = b;
+    }
+}
+
+class B {
+
+    private A a;
+
+    public A getA() {
+        return a;
+    }
+
+    public void setA(A a) {
+        this.a = a;
+    }
+}
+~~~
+
+可以看到既然一个对象完整的创建需要用到另一个对象，那么在一个对象实例化完成以后，填充属性以前，就把这个对象放到缓存中，然后开始填充属性，填充的时候发现还依赖一个对象，那么尝试从缓存中获取，第一次肯定获取不到，所以递归调用，开始创建对象B，B实例化完成以后也加入缓存，然后B开始填充属性，B发现缓存中有对象A，就把A取出来填充属性，那么这时候B就是完整的对象了，开始返回一个完整的B对象，由于是递归，返回了一个B后A继续它的流程，开始填充属性，这时候B是完整的，填充进去，最终两个对象都创建完毕
+
+可以看到只使用一级缓存就可以解决普通对象的循环依赖问题，但是一级缓存这种写法不太优雅，我们希望一级缓存就是存放完整的单例对象，（在解决循环依赖问题前，这个一级缓存其实已经就存在了，是用来存放单例bean 的，也叫单例池，单例对象的获取都直接从这里获取），多例对象每个线程get的时候都要重新创建。
+
+那么为了分离bean对象的完整性，引入了二级缓存，专门用来存放半成品对象，但是spring不只有ioc，还有aop，而三级缓存最主要解决的就是对aop的处理，但如果把aop代理对象的创建提前，那么二级缓存也一样可以解决问题，但是这违背了spring创建对象的原则，spring更喜欢把普通对象都初始化完成，再处理代理对象的初始化
+
+那么现在开始模仿spring使用三级缓存处理循环依赖，主要就是对创建对象的提前暴露，如果是工厂对象则会使用getEarlyBeanReference逻辑提前将工厂对象存放到三级缓存，等到后续获取对象的时候实际拿到的是工厂对象中getobject，这个才是最终的实际对象
+
+在创建对象的AbstractAutowireCapableBeanFactory的docreatebean方法中，提前暴露对象后，就可以接下来的流程，getsingleton方法依次从一级二级三级缓存中获取，一级二级有直接取走，如果对象在三级缓存，则会取出来放到二级缓存，并把三级缓存中的对象删除。
+
+至于单例对象的注册操作，直接放到一级缓存中就ok了
+
+核心流程：
+
+循环依赖的核心功能实现主要包括DefaultSingletonBeanRegistry提供三级缓存，singleobjects，earlysingletonobjects，singletonfactories，分别存放成品，半成品和工厂对象，同时提供三个缓存包装方法，getsingleton，registersingleton，addsingletonfactiory，这样使用方就可以在不同的时间段存放和获取相应的对象
+
+在 AbstractAutowireCapableBeanFactory 的 doCreateBean 方法中，提供了关于提前暴露对象的操作， addSingletonFactory(beanName, () ->getEarlyBeanReference(beanName, beanDefinition,finalBean));
+
+以及后续获取对象和注册对象的操作， exposedObject =getSingleton(beanName); 、 registerSingleton(beanName,exposedObject);
+
+经过这样的处理就可以完成对复杂场景循环依赖的操作。
+
+另外DefaultAdvisorAutoProxyCreator提供的切面服务中，也需要实现接口InstantiationAwareBeanPostProcessor中新增的getEarlyBeanReference方法，便于把依赖的切面对象也能存放到三级缓存中，处理对应的循环依赖
+
+~~~java
+    // 一级缓存，普通对象
+    /**
+     * Cache of singleton objects: bean name --> bean instance
+     */ 
+   private Map<String, Object> singletonObjects = new ConcurrentHashMap<>();
+
+    // 二级缓存，提前暴漏对象，没有完全实例化的对象
+    /**
+     * Cache of early singleton objects: bean name --> bean instance
+     */
+    protected final Map<String, Object> earlySingletonObjects = new HashMap<String, Object>();
+
+    // 三级缓存，存放代理对象
+    /**
+     * Cache of singleton factories: bean name --> ObjectFactory
+     */
+    private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<String, ObjectFactory<?>>();
+~~~
+
+可以看到只有一级缓存需要保证线程安全，因为这个是直接给用户提供使用的，另外一级二级缓存的key都是string，value都是object，三级缓存的key是string，value是ObjectFactory接口，里面定义一个getobject方法。
+
+~~~java
+  // 从单例池中获取单例Bean
+    @Override
+    public Object getSingleton(String beanName) {
+        //一级缓存去拿第一个Bean对象，Bean还没创建出来，singletonObject肯定为null
+        Object singletonObject = singletonObjects.get(beanName);
+        if (null == singletonObject) {
+            singletonObject = earlySingletonObjects.get(beanName);
+            // 判断二级缓存中是否有对象，这个对象就是代理对象，因为只有代理对象才会放到三级缓存中
+            if (null == singletonObject) {
+                // B创建好需要填充A的时候，发现A在三级缓存中有，那么将A加入二级缓存，并从三级缓存中删掉
+                ObjectFactory<?> singletonFactory = singletonFactories.get(beanName);
+                if (singletonFactory != null) {
+                    singletonObject = singletonFactory.getObject();
+                    // 把三级缓存中的代理对象中的真实对象获取出来，放入二级缓存中
+                    earlySingletonObjects.put(beanName, singletonObject);
+                    singletonFactories.remove(beanName);
+                }
+            }
+        }
+        return singletonObject;
+    }
+
+    // 循环依赖的后一个Bean创建成功后，加入一级缓存，删除二三级缓存，
+    // 这样折回去创建第一个Bean的时候从一级缓存直接取出这个后依赖的Bean
+    public void registerSingleton(String beanName, Object singletonObject) {
+        singletonObjects.put(beanName, singletonObject);
+        earlySingletonObjects.remove(beanName);
+        singletonFactories.remove(beanName);
+    }
+
+    protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFactory){
+        // 如果一级缓存中没有要获取的对象，返回false，false取反，方法进入
+        if (!this.singletonObjects.containsKey(beanName)) {
+            // 一级缓存没有，那就加入三级缓存，最终B对象也会被加入三级缓存
+            this.singletonFactories.put(beanName, singletonFactory);
+            // 清除二级缓存
+            this.earlySingletonObjects.remove(beanName);
+        }
+    }
+~~~
+
+在用于提供单例对象注册的操作的DefaultSingletonBeanRegistry类中，把三级缓存属性定义好，分别存放不同类型的对象，紧接着提供了获取，注册和添加对象的方法
+
+在创建bean的时候还是谨记那个思想，对象实例化完成以后填充属性以前，一定要提前暴露
+
+~~~java
+  protected Object doCreateBean(String beanName, BeanDefinition beanDefinition, Object[] args) {
+        Object bean = null;
+        try {
+            // 实例化 Bean
+            bean = createBeanInstance(beanDefinition, beanName, args);
+
+            // 处理循环依赖，将实例化后的Bean对象提前放入缓存中暴露出来
+            if (beanDefinition.isSingleton()) {
+                Object finalBean = bean;
+                addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, beanDefinition, finalBean));
+            }
+                。
+                。
+                。
+    }
+~~~
+
+~~~java
+    protected Object getEarlyBeanReference(String beanName, BeanDefinition beanDefinition, Object bean) {
+        Object exposedObject = bean;
+        for (BeanPostProcessor beanPostProcessor : getBeanPostProcessors()) {
+            if (beanPostProcessor instanceof InstantiationAwareBeanPostProcessor) {
+                exposedObject = ((InstantiationAwareBeanPostProcessor) beanPostProcessor)
+                        .getEarlyBeanReference(exposedObject, beanName);
+                if (null == exposedObject) return exposedObject;
+            }
+        }
+
+        return exposedObject;
+    }
+~~~
+
+~~~java
+        // 判断 SCOPE_SINGLETON、SCOPE_PROTOTYPE
+        Object exposedObject = bean;
+        if (beanDefinition.isSingleton()) {
+            // 获取代理对象
+            exposedObject = getSingleton(beanName);
+            registerSingleton(beanName, exposedObject);
+        }
+~~~
+
+在AbstractAutowireCapableBeanFactory中的createBean方法中，主要是扩展了对象的提前暴露addSingletonFactory，和单例对象的获取getSingleton以及注册操作registerSingleton
+
+getEarlyBeanReference就是定义在如AOP切面中这样的代理对象，参考源码：InstantiationAwareBeanPostProcessor#getEarlyBeanReference
+
+总结一下A,B两个对象在三级缓存中的迁移：
+
+~~~wiki
+1. A创建过程中，需要使用到B，于是A将自己放到三级缓存中，开始填充属性，需要用到B，然后去实例化B
+2. B实例化的过程中 (B也先将自己放到三级缓存中) ，需要A，于是B先在一级缓存中查找A，没有 ，再查找二级缓存，还是没有，再查找三级缓存，在三级缓存里面找到了A，然后把三级缓存里的A放到二级缓存，然后从三级缓存中删除A
+3. B初始化完成后将B本身放到一级缓存中，此时B里面的A仍然是创建中的状态，也就是实例化完成，但并未完成初始化。
+接着回去创建A，此时B已经创建完成，直接从一级缓存里面拿到B，然后完成A的创建，并将A自己放到一级缓存中、
+~~~
+
